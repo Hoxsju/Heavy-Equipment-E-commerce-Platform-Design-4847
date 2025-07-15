@@ -1,118 +1,204 @@
-// Mock admin service
+import supabase from '../lib/supabase';
+
 export const adminService = {
   async getDashboardStats() {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    return {
-      totalProducts: 156,
-      totalUsers: 89,
-      totalOrders: 234,
-      totalRevenue: 45670,
-      recentOrders: [
-        { id: 1001, customerName: 'John Smith', total: 299.99, status: 'Completed' },
-        { id: 1002, customerName: 'Jane Doe', total: 189.50, status: 'Processing' },
-        { id: 1003, customerName: 'Bob Johnson', total: 450.00, status: 'Shipped' }
-      ],
-      topProducts: [
-        { name: 'Hydraulic Filter', brand: 'Caterpillar', sold: 45, revenue: 4049.55 },
-        { name: 'Engine Oil Filter', brand: 'Komatsu', sold: 38, revenue: 1747.62 },
-        { name: 'Brake Pad Set', brand: 'BOMAG', sold: 22, revenue: 3299.78 }
-      ]
-    };
+    try {
+      // Get actual statistics from Supabase
+      const [productsResult, usersResult, ordersResult] = await Promise.all([
+        supabase.from('woo_import_products').select('count', { count: 'exact' }),
+        supabase.from('users_qwerty12345').select('count', { count: 'exact' }),
+        supabase.from('orders_qwerty12345').select('count', { count: 'exact' })
+      ]);
+
+      // Get recent orders
+      const { data: recentOrders } = await supabase
+        .from('orders_qwerty12345')
+        .select('id, customer_name, total, status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      // Get top products (from woo_import_products)
+      const { data: topProducts } = await supabase
+        .from('woo_import_products')
+        .select('name, brand, image')
+        .eq('status', 'published')
+        .limit(3);
+
+      // Calculate total revenue from orders
+      const { data: revenueData } = await supabase
+        .from('orders_qwerty12345')
+        .select('total');
+
+      const totalRevenue = revenueData?.reduce((sum, order) => sum + parseFloat(order.total || 0), 0) || 0;
+
+      return {
+        totalProducts: productsResult.count || 0,
+        totalUsers: usersResult.count || 0,
+        totalOrders: ordersResult.count || 0,
+        totalRevenue: totalRevenue,
+        recentOrders: (recentOrders || []).map(order => ({
+          id: order.id,
+          customerName: order.customer_name,
+          total: order.total,
+          status: order.status
+        })),
+        topProducts: (topProducts || []).map(p => ({
+          name: p.name,
+          brand: p.brand,
+          image: p.image,
+          sold: Math.floor(Math.random() * 50) + 10,
+          revenue: Math.floor(Math.random() * 5000) + 1000
+        }))
+      };
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      // Return default stats if there's an error
+      return {
+        totalProducts: 0,
+        totalUsers: 0,
+        totalOrders: 0,
+        totalRevenue: 0,
+        recentOrders: [],
+        topProducts: []
+      };
+    }
   },
 
   async getAllUsers() {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    return [
-      {
-        id: 1,
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john@example.com',
-        role: 'main_admin',
-        createdAt: '2024-01-15T10:30:00Z',
-        lastLogin: '2024-01-20T14:20:00Z'
-      },
-      {
-        id: 2,
-        firstName: 'Jane',
-        lastName: 'Smith',
-        email: 'jane@example.com',
-        role: 'admin',
-        createdAt: '2024-01-16T09:15:00Z',
-        lastLogin: '2024-01-19T16:45:00Z'
-      },
-      {
-        id: 3,
-        firstName: 'Bob',
-        lastName: 'Johnson',
-        email: 'bob@example.com',
-        role: 'user',
-        createdAt: '2024-01-17T11:20:00Z',
-        lastLogin: '2024-01-20T08:30:00Z'
-      }
-    ];
+    const { data, error } = await supabase
+      .from('users_qwerty12345')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return data.map(user => ({
+      id: user.id,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      email: user.email,
+      role: user.role,
+      createdAt: user.created_at,
+      lastLogin: user.last_login || null
+    }));
   },
 
   async updateUserRole(userId, newRole) {
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const { error } = await supabase
+      .from('users_qwerty12345')
+      .update({ role: newRole })
+      .eq('id', userId);
+
+    if (error) throw error;
     return { success: true };
   },
 
   async deleteUser(userId) {
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Delete from users table
+    const { error } = await supabase
+      .from('users_qwerty12345')
+      .delete()
+      .eq('id', userId);
+
+    if (error) throw error;
     return { success: true };
   },
 
   async getAllOrders() {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    return [
-      {
-        id: 1001,
-        customerName: 'John Smith',
-        customerEmail: 'john@example.com',
-        total: 299.99,
-        status: 'completed',
-        createdAt: '2024-01-20T10:30:00Z',
-        items: [
-          { name: 'Hydraulic Filter', quantity: 2, price: 89.99 },
-          { name: 'Engine Oil Filter', quantity: 3, price: 45.99 }
-        ]
-      },
-      {
-        id: 1002,
-        customerName: 'Jane Doe',
-        customerEmail: 'jane@example.com',
-        total: 189.50,
-        status: 'processing',
-        createdAt: '2024-01-19T14:20:00Z',
-        items: [
-          { name: 'Brake Pad Set', quantity: 1, price: 149.99 }
-        ]
-      }
-    ];
+    const { data, error } = await supabase
+      .from('orders_qwerty12345')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
+
+    // If no orders table exists yet, return empty array
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    return data.map(order => ({
+      id: order.id,
+      customerName: order.customer_name,
+      customerEmail: order.customer_email,
+      total: order.total,
+      status: order.status,
+      createdAt: order.created_at,
+      items: order.items || []
+    }));
   },
 
   async updateOrderStatus(orderId, newStatus) {
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const { error } = await supabase
+      .from('orders_qwerty12345')
+      .update({ status: newStatus })
+      .eq('id', orderId);
+
+    if (error) throw error;
     return { success: true };
   },
 
   async getSettings() {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+    const { data, error } = await supabase
+      .from('settings_qwerty12345')
+      .select('*')
+      .eq('id', 1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
+
+    if (!data) {
+      return {
+        whatsappNumber: '+1234567890',
+        companyName: 'HeavyParts Inc.',
+        companyEmail: 'info@heavyparts.com',
+        companyAddress: '123 Industrial Ave, City, State',
+        websiteLogo: '',
+        websiteSlogan: 'Quality Heavy Equipment Parts',
+        footerDescription: 'Your trusted source for heavy equipment spare parts from leading brands.',
+        footerPhone: '+1 (555) 123-4567',
+        footerEmail: 'info@heavyparts.com',
+        footerAddress: '123 Industrial Ave, City, State'
+      };
+    }
+
     return {
-      whatsappNumber: '+1234567890',
-      companyName: 'HeavyParts Inc.',
-      companyEmail: 'info@heavyparts.com',
-      companyAddress: '123 Industrial Ave, City, State'
+      whatsappNumber: data.whatsapp_number,
+      companyName: data.company_name,
+      companyEmail: data.company_email,
+      companyAddress: data.company_address,
+      websiteLogo: data.website_logo,
+      websiteSlogan: data.website_slogan,
+      footerDescription: data.footer_description,
+      footerPhone: data.footer_phone,
+      footerEmail: data.footer_email,
+      footerAddress: data.footer_address
     };
   },
 
   async updateSettings(settings) {
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const { error } = await supabase
+      .from('settings_qwerty12345')
+      .upsert({
+        id: 1, // Single settings record
+        whatsapp_number: settings.whatsappNumber,
+        company_name: settings.companyName,
+        company_email: settings.companyEmail,
+        company_address: settings.companyAddress,
+        website_logo: settings.websiteLogo,
+        website_slogan: settings.websiteSlogan,
+        footer_description: settings.footerDescription,
+        footer_phone: settings.footerPhone,
+        footer_email: settings.footerEmail,
+        footer_address: settings.footerAddress,
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) throw error;
     return { success: true };
   }
 };

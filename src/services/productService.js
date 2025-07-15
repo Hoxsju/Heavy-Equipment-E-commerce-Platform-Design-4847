@@ -1,122 +1,174 @@
-// Mock product service
-const mockProducts = [
-  {
-    id: 1,
-    name: 'Hydraulic Filter',
-    partNumber: 'CAT-126-2081',
-    brand: 'Caterpillar',
-    category: 'Filters',
-    price: 89.99,
-    stock: 25,
-    image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop',
-    description: 'High-quality hydraulic filter for Caterpillar equipment',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 2,
-    name: 'Engine Oil Filter',
-    partNumber: 'KOM-600-211-1230',
-    brand: 'Komatsu',
-    category: 'Filters',
-    price: 45.99,
-    stock: 50,
-    image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop',
-    description: 'Premium engine oil filter for Komatsu machinery',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 3,
-    name: 'Hydraulic Pump',
-    partNumber: 'BOMAG-05727277',
-    brand: 'BOMAG',
-    category: 'Hydraulics',
-    price: 1299.99,
-    stock: 8,
-    image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop',
-    description: 'High-performance hydraulic pump for BOMAG compactors',
-    createdAt: new Date().toISOString()
-  }
-];
+import supabase from '../lib/supabase';
 
 export const productService = {
   async getAllProducts() {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return mockProducts;
-  },
+    const { data, error } = await supabase
+      .from('woo_import_products')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-  async getFeaturedProducts() {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return mockProducts.slice(0, 8);
+    if (error) throw error;
+    return data;
   },
 
   async getProductById(id) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return mockProducts.find(p => p.id === parseInt(id));
+    const { data, error } = await supabase
+      .from('woo_import_products')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
   async createProduct(productData) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const newProduct = {
-      id: Date.now(),
-      ...productData,
-      createdAt: new Date().toISOString()
-    };
-    mockProducts.push(newProduct);
-    return newProduct;
+    const { data, error } = await supabase
+      .from('woo_import_products')
+      .insert([{
+        name: productData.name,
+        part_number: productData.partNumber,
+        brand: productData.brand,
+        category: productData.category,
+        price: productData.price ? parseFloat(productData.price) : null,
+        sale_price: productData.salePrice ? parseFloat(productData.salePrice) : null,
+        stock: productData.stock ? parseInt(productData.stock) : null,
+        description: productData.description,
+        image: productData.image || productData.mainImage,
+        status: productData.status || 'draft',
+        slug: productData.slug
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
   async updateProduct(id, productData) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const index = mockProducts.findIndex(p => p.id === id);
-    if (index !== -1) {
-      mockProducts[index] = { ...mockProducts[index], ...productData };
-      return mockProducts[index];
+    try {
+      console.log('Updating product:', id, productData);
+      
+      // Prepare update data with correct field mappings
+      const updateData = {
+        name: productData.name,
+        part_number: productData.partNumber || productData.part_number,
+        brand: productData.brand,
+        category: productData.category,
+        price: productData.price ? parseFloat(productData.price) : null,
+        sale_price: productData.salePrice ? parseFloat(productData.salePrice) : null,
+        stock: productData.stock ? parseInt(productData.stock) : null,
+        description: productData.description,
+        image: productData.mainImage || productData.image,
+        status: productData.status || 'draft',
+        slug: productData.slug
+      };
+
+      const { data, error } = await supabase
+        .from('woo_import_products')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase update error:', error);
+        throw error;
+      }
+
+      console.log('Product updated successfully:', data);
+      return { ...data, partNumber: data.part_number, salePrice: data.sale_price };
+    } catch (error) {
+      console.error('Error updating product:', error);
+      throw error;
     }
-    throw new Error('Product not found');
   },
 
   async deleteProduct(id) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const index = mockProducts.findIndex(p => p.id === id);
-    if (index !== -1) {
-      mockProducts.splice(index, 1);
-      return true;
-    }
-    throw new Error('Product not found');
+    const { error } = await supabase
+      .from('woo_import_products')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return { success: true };
   },
 
-  async importFromWooCommerce(apiUrl, consumerKey, consumerSecret) {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Mock imported products
-    const importedProducts = [
-      {
-        id: Date.now() + 1,
-        name: 'Air Filter - Imported',
-        partNumber: 'WC-AF-001',
-        brand: 'Generic',
-        category: 'Filters',
-        price: 29.99,
-        stock: 100,
-        image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop',
-        description: 'Imported air filter from WooCommerce',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: Date.now() + 2,
-        name: 'Brake Pad Set - Imported',
-        partNumber: 'WC-BP-002',
-        brand: 'Generic',
-        category: 'Brakes',
-        price: 149.99,
-        stock: 75,
-        image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop',
-        description: 'Imported brake pad set from WooCommerce',
-        createdAt: new Date().toISOString()
+  async bulkUpdateProducts(productIds, updates) {
+    try {
+      console.log('Bulk updating products:', productIds, updates);
+      const updateData = {...updates};
+      const { error } = await supabase
+        .from('woo_import_products')
+        .update(updateData)
+        .in('id', productIds);
+
+      if (error) {
+        console.error('Bulk update error:', error);
+        throw error;
       }
-    ];
-    
-    mockProducts.push(...importedProducts);
-    return importedProducts;
+      console.log('Bulk update successful');
+      return { success: true };
+    } catch (error) {
+      console.error('Error bulk updating products:', error);
+      throw error;
+    }
+  },
+
+  async bulkDeleteProducts(productIds) {
+    const { error } = await supabase
+      .from('woo_import_products')
+      .delete()
+      .in('id', productIds);
+
+    if (error) throw error;
+    return { success: true };
+  },
+
+  async getFeaturedProducts() {
+    const { data, error } = await supabase
+      .from('woo_import_products')
+      .select('*')
+      .eq('status', 'published')
+      .order('created_at', { ascending: false })
+      .limit(8);
+
+    if (error) throw error;
+    return data;
+  },
+
+  async searchProducts(searchTerm) {
+    const { data, error } = await supabase
+      .from('woo_import_products')
+      .select('*')
+      .or(`name.ilike.%${searchTerm}%,part_number.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getBrands() {
+    const { data, error } = await supabase
+      .from('woo_import_products')
+      .select('brand')
+      .not('brand', 'is', null);
+
+    if (error) throw error;
+    // Get unique brands
+    const brands = [...new Set(data.map(item => item.brand))];
+    return brands;
+  },
+
+  async getCategories() {
+    const { data, error } = await supabase
+      .from('woo_import_products')
+      .select('category')
+      .not('category', 'is', null);
+
+    if (error) throw error;
+    // Get unique categories
+    const categories = [...new Set(data.map(item => item.category))];
+    return categories;
   }
 };

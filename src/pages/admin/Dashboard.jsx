@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import { adminService } from '../../services/adminService';
+import ProfileModal from '../../components/ProfileModal';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiPackage, FiUsers, FiShoppingBag, FiDollarSign, FiTrendingUp, FiTrendingDown } = FiIcons;
+const { FiPackage, FiUsers, FiShoppingBag, FiDollarSign, FiTrendingUp, FiTrendingDown, FiUser, FiEdit } = FiIcons;
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -16,8 +17,13 @@ const Dashboard = () => {
     topProducts: []
   });
   const [loading, setLoading] = useState(true);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const { user } = React.useContext(require('../../context/AuthContext').AuthContext);
 
   useEffect(() => {
+    // Force scroll to top when component mounts
+    window.scrollTo(0, 0);
+
     const fetchDashboardData = async () => {
       try {
         const data = await adminService.getDashboardStats();
@@ -33,34 +39,10 @@ const Dashboard = () => {
   }, []);
 
   const statCards = [
-    {
-      title: 'Total Products',
-      value: stats.totalProducts,
-      icon: FiPackage,
-      color: 'bg-blue-500',
-      change: '+12%'
-    },
-    {
-      title: 'Total Users',
-      value: stats.totalUsers,
-      icon: FiUsers,
-      color: 'bg-green-500',
-      change: '+5%'
-    },
-    {
-      title: 'Total Orders',
-      value: stats.totalOrders,
-      icon: FiShoppingBag,
-      color: 'bg-purple-500',
-      change: '+8%'
-    },
-    {
-      title: 'Total Revenue',
-      value: `$${stats.totalRevenue?.toLocaleString()}`,
-      icon: FiDollarSign,
-      color: 'bg-yellow-500',
-      change: '+15%'
-    }
+    { title: 'Total Products', value: stats.totalProducts, icon: FiPackage, color: 'bg-blue-500', change: '+12%' },
+    { title: 'Total Users', value: stats.totalUsers, icon: FiUsers, color: 'bg-green-500', change: '+5%' },
+    { title: 'Total Orders', value: stats.totalOrders, icon: FiShoppingBag, color: 'bg-purple-500', change: '+8%' },
+    { title: 'Total Revenue', value: `$${stats.totalRevenue?.toLocaleString()}`, icon: FiDollarSign, color: 'bg-yellow-500', change: '+15%' }
   ];
 
   if (loading) {
@@ -79,6 +61,32 @@ const Dashboard = () => {
           Last updated: {new Date().toLocaleString()}
         </div>
       </div>
+
+      {/* User Profile Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-lg shadow-sm p-6"
+      >
+        <div className="flex justify-between items-center">
+          <div className="flex items-center space-x-4">
+            <div className="bg-primary-100 rounded-full p-4">
+              <SafeIcon icon={FiUser} className="h-8 w-8 text-primary-600" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Welcome, {user?.firstName} {user?.lastName}</h2>
+              <p className="text-gray-600">{user?.email}</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => setShowProfileModal(true)}
+            className="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg hover:bg-primary-100 flex items-center"
+          >
+            <SafeIcon icon={FiEdit} className="h-4 w-4 mr-2" />
+            Edit Profile
+          </button>
+        </div>
+      </motion.div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -155,6 +163,14 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <ProfileModal
+          user={user}
+          onClose={() => setShowProfileModal(false)}
+        />
+      )}
     </div>
   );
 };

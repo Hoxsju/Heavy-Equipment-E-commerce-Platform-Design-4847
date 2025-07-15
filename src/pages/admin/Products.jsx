@@ -1,23 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import SafeIcon from '../../common/SafeIcon';
-import ProductModal from '../../components/ProductModal';
-import FilterBar from '../../components/FilterBar';
-import { productService } from '../../services/productService';
 import { toast } from 'react-toastify';
+import SafeIcon from '../../common/SafeIcon';
+import FilterBar from '../../components/FilterBar';
+import ProductModal from '../../components/ProductModal';
+import BulkEditModal from '../../components/BulkEditModal';
+import { productService } from '../../services/productService';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiPlus, FiEdit, FiTrash2, FiSearch, FiFilter } = FiIcons;
+const { FiPlus, FiEdit, FiTrash2, FiEye, FiCheck } = FiIcons;
 
 const Products = () => {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
+  const [showModal, setShowModal] = useState(false);
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [selectedProducts, setSelectedProducts] = useState([]);
 
   useEffect(() => {
     fetchProducts();
@@ -29,10 +32,12 @@ const Products = () => {
 
   const fetchProducts = async () => {
     try {
+      setLoading(true);
       const data = await productService.getAllProducts();
       setProducts(data);
     } catch (error) {
-      toast.error('Error fetching products');
+      console.error('Error fetching products:', error);
+      toast.error('Error loading products');
     } finally {
       setLoading(false);
     }
@@ -41,7 +46,7 @@ const Products = () => {
   const filterAndSortProducts = () => {
     let filtered = products.filter(product =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.part_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.brand.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -64,42 +69,179 @@ const Products = () => {
     setFilteredProducts(filtered);
   };
 
-  const handleAddProduct = () => {
-    setEditingProduct(null);
-    setShowModal(true);
+  const handleSaveProduct = async (productData) => {
+    try {
+      setLoading(true);
+      if (editingProduct) {
+        await productService.updateProduct(editingProduct.id, productData);
+        toast.success('Product updated successfully');
+      } else {
+        await productService.createProduct(productData);
+        toast.success('Product created successfully');
+      }
+      setShowModal(false);
+      setEditingProduct(null);
+      fetchProducts();
+    } catch (error) {
+      console.error('Error saving product:', error);
+      toast.error('Error saving product');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEditProduct = (product) => {
-    setEditingProduct(product);
-    setShowModal(true);
-  };
-
-  const handleDeleteProduct = async (productId) => {
+  const handleDeleteProduct = async (id) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
-        await productService.deleteProduct(productId);
-        setProducts(products.filter(p => p.id !== productId));
+        await productService.deleteProduct(id);
         toast.success('Product deleted successfully');
+        fetchProducts();
       } catch (error) {
+        console.error('Error deleting product:', error);
         toast.error('Error deleting product');
       }
     }
   };
 
-  const handleSaveProduct = async (productData) => {
+  const handleSelectProduct = (productId) => {
+    setSelectedProducts(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedProducts.length === filteredProducts.length) {
+      setSelectedProducts([]);
+    } else {
+      setSelectedProducts(filteredProducts.map(p => p.id));
+    }
+  };
+
+  const handleBulkEdit = async (updates) => {
+    if (selectedProducts.length === 0) {
+      toast.warning('No products selected');
+      return;
+    }
+
+    setLoading(true);
     try {
-      if (editingProduct) {
-        const updatedProduct = await productService.updateProduct(editingProduct.id, productData);
-        setProducts(products.map(p => p.id === editingProduct.id ? updatedProduct : p));
-        toast.success('Product updated successfully');
-      } else {
-        const newProduct = await productService.createProduct(productData);
-        setProducts([...products, newProduct]);
-        toast.success('Product created successfully');
+      // Get selected products data first
+      const selectedProductsData = products.filter(p => selectedProducts.includes(p.id));
+      
+      // Process each product individually for better error handling
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const product of selectedProductsData) {
+        try {
+          let updatedProduct = { ...product };
+
+          // Update simple fields
+          if (updates.price !== undefined) {
+            updatedProduct.price = updates.price;
+          }
+          if (updates.salePrice !== undefined) {
+            updatedProduct.sale_price = updates.salePrice;
+          }
+          if (updates.stock !== undefined) {
+            updatedProduct.stock = updates.stock;
+          }
+          if (updates.status !== undefined) {
+            updatedProduct.status = updates.status;
+          }
+
+          // Handle brands update
+          if (updates.brands) {
+            const currentBrands = Array.isArray(product.brands) ? product.brands : 
+                                (product.brand ? [product.brand] : []);
+            
+            if (updates.brands.action === 'add') {
+              // Add new brands without duplicates
+              updatedProduct.brands = [...new Set([...currentBrands, ...updates.brands.value])];
+            } else if (updates.brands.action === 'replace') {
+              // Replace all brands
+              updatedProduct.brands = [...updates.brands.value];
+            } else if (updates.brands.action === 'remove') {
+              // Remove specified brands
+              updatedProduct.brands = currentBrands.filter(brand => !updates.brands.value.includes(brand));
+            }
+            
+            // Update legacy brand field for backward compatibility
+            if (updatedProduct.brands.length > 0) {
+              updatedProduct.brand = updatedProduct.brands[0];
+            }
+          }
+
+          // Handle categories update
+          if (updates.categories) {
+            const currentCategories = Array.isArray(product.categories) ? product.categories : 
+                                    (product.category ? [product.category] : []);
+            
+            if (updates.categories.action === 'add') {
+              // Add new categories without duplicates
+              updatedProduct.categories = [...new Set([...currentCategories, ...updates.categories.value])];
+            } else if (updates.categories.action === 'replace') {
+              // Replace all categories
+              updatedProduct.categories = [...updates.categories.value];
+            } else if (updates.categories.action === 'remove') {
+              // Remove specified categories
+              updatedProduct.categories = currentCategories.filter(cat => !updates.categories.value.includes(cat));
+            }
+            
+            // Update legacy category field for backward compatibility
+            if (updatedProduct.categories.length > 0) {
+              updatedProduct.category = updatedProduct.categories[0];
+            }
+          }
+
+          // Remove updated_at from the update data
+          const { updated_at, ...updateData } = updatedProduct;
+
+          // Save the updated product
+          await productService.updateProduct(product.id, updateData);
+          successCount++;
+        } catch (error) {
+          console.error(`Error updating product ${product.id}:`, error);
+          errorCount++;
+        }
       }
-      setShowModal(false);
+
+      if (successCount > 0) {
+        toast.success(`Successfully updated ${successCount} products`);
+      }
+      if (errorCount > 0) {
+        toast.error(`Failed to update ${errorCount} products`);
+      }
+
+      setShowBulkEditModal(false);
+      setSelectedProducts([]);
+      fetchProducts();
     } catch (error) {
-      toast.error('Error saving product');
+      console.error('Bulk edit error:', error);
+      toast.error(`Error updating products: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedProducts.length === 0) {
+      toast.warning('No products selected');
+      return;
+    }
+
+    if (window.confirm(`Are you sure you want to delete ${selectedProducts.length} products?`)) {
+      try {
+        await productService.bulkDeleteProducts(selectedProducts);
+        toast.success(`Successfully deleted ${selectedProducts.length} products`);
+        setSelectedProducts([]);
+        fetchProducts();
+      } catch (error) {
+        console.error('Error deleting products:', error);
+        toast.error('Error deleting products');
+      }
     }
   };
 
@@ -115,16 +257,35 @@ const Products = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-        <button
-          onClick={handleAddProduct}
-          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center"
-        >
-          <SafeIcon icon={FiPlus} className="h-4 w-4 mr-2" />
-          Add Product
-        </button>
+        <div className="flex space-x-2">
+          {selectedProducts.length > 0 && (
+            <>
+              <button
+                onClick={() => setShowBulkEditModal(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center"
+              >
+                <SafeIcon icon={FiEdit} className="h-4 w-4 mr-2" />
+                Bulk Edit ({selectedProducts.length})
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center"
+              >
+                <SafeIcon icon={FiTrash2} className="h-4 w-4 mr-2" />
+                Delete Selected
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center"
+          >
+            <SafeIcon icon={FiPlus} className="h-4 w-4 mr-2" />
+            Add Product
+          </button>
+        </div>
       </div>
 
-      {/* Filter Bar */}
       <FilterBar
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
@@ -134,19 +295,27 @@ const Products = () => {
         setSortOrder={setSortOrder}
         sortOptions={[
           { value: 'name', label: 'Name' },
+          { value: 'part_number', label: 'Part Number' },
           { value: 'brand', label: 'Brand' },
           { value: 'price', label: 'Price' },
           { value: 'stock', label: 'Stock' },
-          { value: 'createdAt', label: 'Date Added' }
+          { value: 'created_at', label: 'Date Added' }
         ]}
       />
 
-      {/* Products Table */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <input
+                    type="checkbox"
+                    checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
+                    onChange={handleSelectAll}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Product
                 </th>
@@ -163,6 +332,9 @@ const Products = () => {
                   Stock
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -176,11 +348,19 @@ const Products = () => {
                   className="hover:bg-gray-50"
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.includes(product.id)}
+                      onChange={() => handleSelectProduct(product.id)}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <img
                         src={product.image || 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=100&h=100&fit=crop'}
                         alt={product.name}
-                        className="w-12 h-12 rounded-lg object-cover mr-4"
+                        className="w-10 h-10 rounded-lg object-cover mr-3"
                       />
                       <div>
                         <div className="text-sm font-medium text-gray-900">{product.name}</div>
@@ -189,7 +369,7 @@ const Products = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {product.partNumber}
+                    {product.part_number}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {product.brand}
@@ -197,19 +377,25 @@ const Products = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     ${product.price?.toFixed(2)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {product.stock}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      product.stock > 10 ? 'bg-green-100 text-green-800' :
-                      product.stock > 0 ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
+                      product.status === 'published' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-yellow-100 text-yellow-800'
                     }`}>
-                      {product.stock} units
+                      {product.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => handleEditProduct(product)}
+                        onClick={() => {
+                          setEditingProduct(product);
+                          setShowModal(true);
+                        }}
                         className="text-primary-600 hover:text-primary-900"
                       >
                         <SafeIcon icon={FiEdit} className="h-4 w-4" />
@@ -234,7 +420,20 @@ const Products = () => {
         <ProductModal
           product={editingProduct}
           onSave={handleSaveProduct}
-          onClose={() => setShowModal(false)}
+          onClose={() => {
+            setShowModal(false);
+            setEditingProduct(null);
+          }}
+        />
+      )}
+
+      {/* Bulk Edit Modal */}
+      {showBulkEditModal && (
+        <BulkEditModal
+          selectedProducts={selectedProducts}
+          onSave={handleBulkEdit}
+          onClose={() => setShowBulkEditModal(false)}
+          productCount={selectedProducts.length}
         />
       )}
     </div>

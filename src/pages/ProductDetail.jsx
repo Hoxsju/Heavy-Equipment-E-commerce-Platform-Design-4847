@@ -9,7 +9,7 @@ import { productService } from '../services/productService';
 import QuickOrderModal from '../components/QuickOrderModal';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiShoppingCart, FiMessageCircle, FiMinus, FiPlus, FiArrowLeft, FiTruck, FiShield, FiClock } = FiIcons;
+const { FiShoppingCart, FiMessageCircle, FiMinus, FiPlus, FiArrowLeft, FiTruck, FiShield, FiClock, FiDollarSign } = FiIcons;
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -22,6 +22,8 @@ const ProductDetail = () => {
   const [showQuickOrder, setShowQuickOrder] = useState(false);
 
   useEffect(() => {
+    // Force scroll to top when component mounts
+    window.scrollTo(0, 0);
     fetchProduct();
   }, [id]);
 
@@ -43,8 +45,8 @@ const ProductDetail = () => {
   };
 
   const handleWhatsApp = () => {
-    const message = `Hi, I'm interested in ${product.name} - ${product.partNumber}. Link: ${window.location.href}`;
-    const whatsappUrl = `https://wa.me/1234567890?text=${encodeURIComponent(message)}`;
+    const message = `Hi, I'm interested in ${product.name} - ${product.part_number || product.partNumber}. Link: ${window.location.href}`;
+    const whatsappUrl = `https://wa.me/966502255702?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
 
@@ -65,10 +67,7 @@ const ProductDetail = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h2>
-          <button
-            onClick={() => navigate('/')}
-            className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700"
-          >
+          <button onClick={() => navigate('/')} className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700">
             Go Back Home
           </button>
         </div>
@@ -79,10 +78,7 @@ const ProductDetail = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center text-gray-600 hover:text-gray-900 mb-6"
-        >
+        <button onClick={() => navigate(-1)} className="flex items-center text-gray-600 hover:text-gray-900 mb-6">
           <SafeIcon icon={FiArrowLeft} className="h-4 w-4 mr-2" />
           Back
         </button>
@@ -105,11 +101,11 @@ const ProductDetail = () => {
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.name}</h1>
                 <p className="text-gray-600 mb-4">{product.description}</p>
-                
+
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div>
                     <span className="text-sm text-gray-500">Part Number:</span>
-                    <p className="font-medium">{product.partNumber}</p>
+                    <p className="font-medium">{product.part_number || product.partNumber}</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-500">Brand:</span>
@@ -130,8 +126,9 @@ const ProductDetail = () => {
 
               <div className="border-t pt-6">
                 <div className="flex items-center justify-between mb-6">
-                  <span className="text-3xl font-bold text-primary-600">
-                    ${product.price?.toFixed(2)}
+                  <span className="text-lg font-medium text-gray-900 flex items-center">
+                    <SafeIcon icon={FiDollarSign} className="h-5 w-5 mr-1 text-primary-600" />
+                    Contact for pricing
                   </span>
                 </div>
 
@@ -166,7 +163,6 @@ const ProductDetail = () => {
                       <SafeIcon icon={FiShoppingCart} className="h-5 w-5 mr-2" />
                       Add to Cart
                     </button>
-                    
                     <button
                       onClick={handleWhatsApp}
                       className="bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
@@ -175,44 +171,41 @@ const ProductDetail = () => {
                       WhatsApp
                     </button>
                   </div>
-
                   <button
                     onClick={handleBuyNow}
                     disabled={product.stock === 0}
                     className="w-full bg-orange-600 text-white py-3 px-6 rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold"
                   >
-                    Buy Now
+                    Request Quote
                   </button>
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Features Section */}
-          <div className="border-t bg-gray-50 p-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="flex items-center space-x-3">
-                <SafeIcon icon={FiTruck} className="h-8 w-8 text-primary-600" />
-                <div>
-                  <h3 className="font-semibold text-gray-900">Fast Delivery</h3>
-                  <p className="text-sm text-gray-600">Quick shipping to your location</p>
-                </div>
+        {/* Features Section */}
+        <div className="border-t bg-gray-50 p-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="flex items-center space-x-3">
+              <SafeIcon icon={FiTruck} className="h-8 w-8 text-primary-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Fast Delivery</h3>
+                <p className="text-sm text-gray-600">Quick shipping to your location</p>
               </div>
-              
-              <div className="flex items-center space-x-3">
-                <SafeIcon icon={FiShield} className="h-8 w-8 text-primary-600" />
-                <div>
-                  <h3 className="font-semibold text-gray-900">Quality Guarantee</h3>
-                  <p className="text-sm text-gray-600">Genuine parts with warranty</p>
-                </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <SafeIcon icon={FiShield} className="h-8 w-8 text-primary-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Quality Guarantee</h3>
+                <p className="text-sm text-gray-600">Genuine parts with warranty</p>
               </div>
-              
-              <div className="flex items-center space-x-3">
-                <SafeIcon icon={FiClock} className="h-8 w-8 text-primary-600" />
-                <div>
-                  <h3 className="font-semibold text-gray-900">24/7 Support</h3>
-                  <p className="text-sm text-gray-600">Round-the-clock assistance</p>
-                </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <SafeIcon icon={FiClock} className="h-8 w-8 text-primary-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">24/7 Support</h3>
+                <p className="text-sm text-gray-600">Round-the-clock assistance</p>
               </div>
             </div>
           </div>
