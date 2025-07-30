@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
-import { useAuth } from '../context/AuthContext';
+import React, {useState, useEffect} from 'react';
+import {Link} from 'react-router-dom';
+import {motion} from 'framer-motion';
+import {toast} from 'react-toastify';
+import {useAuth} from '../context/AuthContext';
 import SafeIcon from '../common/SafeIcon';
 import ProfileModal from '../components/ProfileModal';
 import OrderDetailModal from '../components/OrderDetailModal';
-import { orderService } from '../services/orderService';
+import {orderService} from '../services/orderService';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiHome, FiUser, FiShoppingBag, FiEye, FiEdit, FiPackage, FiCalendar, FiMapPin, FiMessageCircle } = FiIcons;
+const {FiHome, FiUser, FiShoppingBag, FiEye, FiEdit, FiPackage, FiCalendar, FiMapPin, FiMessageCircle, FiShopping, FiRefreshCw} = FiIcons;
 
 const Profile = () => {
-  const { user } = useAuth();
+  const {user} = useAuth();
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [refreshingOrders, setRefreshingOrders] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [stats, setStats] = useState({
@@ -24,7 +25,8 @@ const Profile = () => {
   });
 
   useEffect(() => {
-    if (user?.email) {
+    if (user?.id || user?.email) {
+      console.log('Profile: Fetching orders for user:', user.email, 'ID:', user.id);
       fetchUserOrders();
     }
   }, [user]);
@@ -32,17 +34,48 @@ const Profile = () => {
   const fetchUserOrders = async () => {
     try {
       setLoadingOrders(true);
+      console.log('Fetching orders for user:', user.email);
       
+      // Try both email and ID based queries
+      let ordersData = [];
       try {
-        // Try to get orders from API
-        const ordersData = await orderService.getOrdersByCustomer(user.email);
+        // First try by customer email
+        const emailOrders = await orderService.getOrdersByCustomer(user.email);
+        console.log('Orders found by email:', emailOrders?.length || 0);
         
+        // Then try by customer ID if we have it
+        if (user.id) {
+          const idOrders = await orderService.getOrdersByCustomerId(user.id);
+          console.log('Orders found by ID:', idOrders?.length || 0);
+          
+          // Combine and deduplicate orders
+          const combinedOrders = [...(emailOrders || []), ...(idOrders || [])];
+          const uniqueOrders = combinedOrders.filter((order, index, self) =>
+            index === self.findIndex(o => o.id === order.id)
+          );
+          ordersData = uniqueOrders;
+        } else {
+          ordersData = emailOrders || [];
+        }
+        
+        console.log('Final orders data:', ordersData);
         if (ordersData && ordersData.length > 0) {
+          // Sort orders by updated_at first, then created_at
+          ordersData.sort((a, b) => {
+            const aDate = new Date(a.updated_at || a.created_at);
+            const bDate = new Date(b.updated_at || b.created_at);
+            return bDate - aDate;
+          });
+          
           setOrders(ordersData);
           
           // Calculate stats
-          const pending = ordersData.filter(order => ['pending', 'processing'].includes(order.status)).length;
-          const completed = ordersData.filter(order => order.status === 'completed').length;
+          const pending = ordersData.filter(order => 
+            ['pending', 'processing'].includes(order.status)
+          ).length;
+          const completed = ordersData.filter(order => 
+            order.status === 'completed'
+          ).length;
           
           setStats({
             totalOrders: ordersData.length,
@@ -50,93 +83,83 @@ const Profile = () => {
             completedOrders: completed
           });
         } else {
-          // Create mock data if no orders found
-          const mockOrders = [
-            {
-              id: 'ord-' + Date.now(),
-              customer_name: user?.firstName + ' ' + user?.lastName,
-              customer_email: user?.email,
-              status: 'pending',
-              created_at: new Date().toISOString(),
-              items: [
-                { id: 'prod1', name: 'Heavy Duty Bearing', quantity: 2, part_number: 'HD-B-1234' },
-                { id: 'prod2', name: 'Hydraulic Cylinder', quantity: 1, part_number: 'HC-5678' }
-              ],
-              item_prices: [
-                { id: 'prod1', price: 120 },
-                { id: 'prod2', price: 350 }
-              ],
-              total_price: 590,
-              delivery_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-              delivery_address: user?.address || 'Default Address',
-              notes: 'Please deliver during business hours'
-            }
-          ];
-          
-          setOrders(mockOrders);
+          // No orders found - set empty state
+          console.log('No orders found for user:', user.email);
+          setOrders([]);
           setStats({
-            totalOrders: mockOrders.length,
-            pendingOrders: mockOrders.length,
+            totalOrders: 0,
+            pendingOrders: 0,
             completedOrders: 0
           });
         }
       } catch (error) {
         console.error('Error fetching orders:', error);
-        // Fallback to mock data
-        const mockOrders = [
-          {
-            id: 'ord-' + Date.now(),
-            customer_name: user?.firstName + ' ' + user?.lastName,
-            customer_email: user?.email,
-            status: 'pending',
-            created_at: new Date().toISOString(),
-            items: [
-              { id: 'prod1', name: 'Heavy Duty Bearing', quantity: 2, part_number: 'HD-B-1234' },
-              { id: 'prod2', name: 'Hydraulic Cylinder', quantity: 1, part_number: 'HC-5678' }
-            ],
-            item_prices: [
-              { id: 'prod1', price: 120 },
-              { id: 'prod2', price: 350 }
-            ],
-            total_price: 590,
-            delivery_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            delivery_address: user?.address || 'Default Address',
-            notes: 'Please deliver during business hours'
-          }
-        ];
-        
-        setOrders(mockOrders);
+        // Set empty state on error
+        setOrders([]);
         setStats({
-          totalOrders: mockOrders.length,
-          pendingOrders: mockOrders.length,
+          totalOrders: 0,
+          pendingOrders: 0,
           completedOrders: 0
         });
       }
     } catch (error) {
       console.error('Error in order handling:', error);
-      toast.error('Error loading your dashboard');
+      toast.error('Error loading your orders');
+      setOrders([]);
+      setStats({
+        totalOrders: 0,
+        pendingOrders: 0,
+        completedOrders: 0
+      });
     } finally {
       setLoadingOrders(false);
     }
   };
 
+  const handleRefreshOrders = async () => {
+    setRefreshingOrders(true);
+    try {
+      await fetchUserOrders();
+      toast.success('Orders refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing orders:', error);
+      toast.error('Failed to refresh orders');
+    } finally {
+      setRefreshingOrders(false);
+    }
+  };
+
   const handleOrderUpdate = (updatedOrder) => {
+    console.log('Profile: Handling order update:', updatedOrder);
+    
     // Update the order in the state
-    setOrders(prevOrders => 
-      prevOrders.map(order => 
-        order.id === updatedOrder.id ? updatedOrder : order
+    setOrders(prevOrders =>
+      prevOrders.map(order =>
+        order.id === updatedOrder.id ? {
+          ...order,
+          ...updatedOrder,
+          updated_at: updatedOrder.updated_at || new Date().toISOString()
+        } : order
       )
     );
-    
+
     // Update the selected order
     setSelectedOrder(updatedOrder);
     
     // Recalculate stats
-    const pending = orders.filter(order => ['pending', 'processing'].includes(order.status)).length;
-    const completed = orders.filter(order => order.status === 'completed').length;
+    const updatedOrders = orders.map(order =>
+      order.id === updatedOrder.id ? updatedOrder : order
+    );
+    
+    const pending = updatedOrders.filter(order => 
+      ['pending', 'processing'].includes(order.status)
+    ).length;
+    const completed = updatedOrders.filter(order => 
+      order.status === 'completed'
+    ).length;
     
     setStats({
-      totalOrders: orders.length,
+      totalOrders: updatedOrders.length,
       pendingOrders: pending,
       completedOrders: completed
     });
@@ -154,10 +177,10 @@ const Profile = () => {
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return 'Pending Quote';
+    }
+    return new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(amount);
   };
 
   if (!user) {
@@ -166,7 +189,10 @@ const Profile = () => {
         <div className="text-center">
           <SafeIcon icon={FiUser} className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Please log in to view your profile</h2>
-          <Link to="/login" className="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors inline-block">
+          <Link
+            to="/login"
+            className="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors inline-block"
+          >
             Sign In
           </Link>
         </div>
@@ -179,13 +205,22 @@ const Profile = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4 md:mb-0">My Account</h1>
-          <button
-            onClick={() => setShowProfileModal(true)}
-            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center"
-          >
-            <SafeIcon icon={FiEdit} className="h-4 w-4 mr-2" />
-            Edit Profile
-          </button>
+          <div className="flex space-x-3">
+            <Link
+              to="/"
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center transition-colors"
+            >
+              <SafeIcon icon={FiHome} className="h-4 w-4 mr-2" />
+              Go to Shop
+            </Link>
+            <button
+              onClick={() => setShowProfileModal(true)}
+              className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center"
+            >
+              <SafeIcon icon={FiEdit} className="h-4 w-4 mr-2" />
+              Edit Profile
+            </button>
+          </div>
         </div>
 
         {/* User Profile Card */}
@@ -249,10 +284,26 @@ const Profile = () => {
 
         {/* Recent Orders */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">My Orders</h2>
+          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">My Orders</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Showing orders for: {user.email}
+              </p>
+            </div>
+            <button
+              onClick={handleRefreshOrders}
+              disabled={refreshingOrders}
+              className="flex items-center bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
+            >
+              <SafeIcon 
+                icon={FiRefreshCw} 
+                className={`h-4 w-4 mr-2 ${refreshingOrders ? 'animate-spin' : ''}`} 
+              />
+              {refreshingOrders ? 'Refreshing...' : 'Refresh'}
+            </button>
           </div>
-
+          
           {loadingOrders ? (
             <div className="flex justify-center items-center h-48">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -267,6 +318,7 @@ const Profile = () => {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -291,7 +343,18 @@ const Profile = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {order.total_price ? formatCurrency(order.total_price) : 'Pending Quote'}
+                          {formatCurrency(order.total_price)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">
+                          {order.updated_at && order.updated_at !== order.created_at ? (
+                            <span className="text-blue-600 font-medium">
+                              {new Date(order.updated_at).toLocaleDateString()}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">No updates</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -320,28 +383,37 @@ const Profile = () => {
               <SafeIcon icon={FiShoppingBag} className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No orders yet</h3>
               <p className="text-gray-600 mb-6">When you place orders, they will appear here</p>
-              <Link to="/" className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700">
+              <p className="text-sm text-gray-500 mb-4">
+                Looking for orders? Make sure you're signed in with the correct email: <strong>{user.email}</strong>
+              </p>
+              <Link
+                to="/"
+                className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700"
+              >
                 Browse Products
               </Link>
             </div>
           )}
         </div>
+
+        {/* Order Details Modal */}
+        {selectedOrder && (
+          <OrderDetailModal
+            order={selectedOrder}
+            onClose={() => setSelectedOrder(null)}
+            onUpdate={handleOrderUpdate}
+            isAdmin={false}
+          />
+        )}
+
+        {/* Profile Modal */}
+        {showProfileModal && (
+          <ProfileModal
+            user={user}
+            onClose={() => setShowProfileModal(false)}
+          />
+        )}
       </div>
-
-      {/* Order Details Modal */}
-      {selectedOrder && (
-        <OrderDetailModal 
-          order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
-          onUpdate={handleOrderUpdate}
-          isAdmin={false}
-        />
-      )}
-
-      {/* Profile Modal */}
-      {showProfileModal && (
-        <ProfileModal user={user} onClose={() => setShowProfileModal(false)} />
-      )}
     </div>
   );
 };

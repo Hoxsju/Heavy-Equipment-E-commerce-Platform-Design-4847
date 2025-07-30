@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
+import React, {useState, useEffect} from 'react';
+import {motion} from 'framer-motion';
+import {toast} from 'react-toastify';
 import SafeIcon from '../../common/SafeIcon';
 import FilterBar from '../../components/FilterBar';
 import OrderDetailModal from '../../components/OrderDetailModal';
-import { orderService } from '../../services/orderService';
+import {orderService} from '../../services/orderService';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiEye, FiEdit, FiPackage, FiDollarSign } = FiIcons;
+const {FiEye, FiEdit, FiPackage, FiDollarSign, FiRefreshCw} = FiIcons;
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('created_at');
+  const [sortBy, setSortBy] = useState('updated_at');
   const [sortOrder, setSortOrder] = useState('desc');
   const [selectedOrder, setSelectedOrder] = useState(null);
 
@@ -29,13 +30,13 @@ const Orders = () => {
   const fetchOrders = async () => {
     try {
       setLoading(true);
+      console.log('Fetching orders...');
       const data = await orderService.getAllOrders();
       console.log('Fetched orders:', data);
       setOrders(data || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
       toast.error('Error fetching orders');
-      
       // Create mock orders for testing
       const mockOrders = [
         {
@@ -44,9 +45,10 @@ const Orders = () => {
           customer_email: 'john@example.com',
           status: 'pending',
           created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           items: [
-            { id: 'prod1', name: 'Heavy Duty Bearing', quantity: 2, part_number: 'HD-B-1234' },
-            { id: 'prod2', name: 'Hydraulic Cylinder', quantity: 1, part_number: 'HC-5678' }
+            {id: 'prod1', name: 'Heavy Duty Bearing', quantity: 2, part_number: 'HD-B-1234'},
+            {id: 'prod2', name: 'Hydraulic Cylinder', quantity: 1, part_number: 'HC-5678'}
           ],
           item_prices: [],
           total_price: 0,
@@ -61,15 +63,30 @@ const Orders = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      console.log('Refreshing orders...');
+      await fetchOrders();
+      toast.success('Orders refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing orders:', error);
+      toast.error('Failed to refresh orders');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const filterAndSortOrders = () => {
     let filtered = [...orders];
 
     // Apply search filter
     if (searchTerm) {
-      filtered = filtered.filter(order => 
-        order.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        order.customer_email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        order.id?.toString().includes(searchTerm)
+      filtered = filtered.filter(
+        order =>
+          order.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.customer_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          order.id?.toString().includes(searchTerm)
       );
     }
 
@@ -77,12 +94,12 @@ const Orders = () => {
     filtered.sort((a, b) => {
       let aValue = a[sortBy];
       let bValue = b[sortBy];
-      
-      if (sortBy === 'created_at') {
+
+      if (sortBy === 'created_at' || sortBy === 'updated_at') {
         aValue = new Date(aValue);
         bValue = new Date(bValue);
       }
-      
+
       if (sortOrder === 'asc') {
         return aValue > bValue ? 1 : -1;
       } else {
@@ -94,17 +111,29 @@ const Orders = () => {
   };
 
   const handleOrderUpdate = (updatedOrder) => {
-    // Update the order in the state
-    setOrders(prevOrders => 
-      prevOrders.map(order => 
-        order.id === updatedOrder.id ? updatedOrder : order
+    console.log('Handling order update:', updatedOrder);
+    
+    // Update the order in the state with the latest data
+    setOrders(prevOrders =>
+      prevOrders.map(order =>
+        order.id === updatedOrder.id ? {
+          ...order,
+          ...updatedOrder,
+          updated_at: updatedOrder.updated_at || new Date().toISOString()
+        } : order
       )
     );
-    
-    // Update the selected order
+
+    // Update the selected order to reflect changes in the modal
     setSelectedOrder(updatedOrder);
     
+    // Show success message
     toast.success('Order updated successfully');
+    
+    // Re-fetch orders to ensure we have the latest data
+    setTimeout(() => {
+      fetchOrders();
+    }, 1000);
   };
 
   const getStatusColor = (status) => {
@@ -117,14 +146,10 @@ const Orders = () => {
       default: return 'bg-gray-100 text-gray-800';
     }
   };
-  
+
   const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return 'Not priced';
-    
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
+    return new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(amount);
   };
 
   if (loading) {
@@ -139,6 +164,24 @@ const Orders = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
+        <button 
+          onClick={handleRefresh} 
+          disabled={refreshing}
+          className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          <SafeIcon 
+            icon={FiRefreshCw} 
+            className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} 
+          />
+          {refreshing ? 'Refreshing...' : 'Refresh Orders'}
+        </button>
+      </div>
+      
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+        <p className="text-sm text-blue-800">
+          <strong>Note:</strong> Orders are automatically refreshed to show the latest updates. 
+          Click "Refresh Orders" to manually fetch the most recent data.
+        </p>
       </div>
 
       <FilterBar
@@ -149,11 +192,12 @@ const Orders = () => {
         sortOrder={sortOrder}
         setSortOrder={setSortOrder}
         sortOptions={[
+          { value: 'updated_at', label: 'Last Updated' },
+          { value: 'created_at', label: 'Order Date' },
           { value: 'id', label: 'Order ID' },
           { value: 'customer_name', label: 'Customer Name' },
           { value: 'total_price', label: 'Total' },
-          { value: 'status', label: 'Status' },
-          { value: 'created_at', label: 'Order Date' }
+          { value: 'status', label: 'Status' }
         ]}
       />
 
@@ -168,18 +212,14 @@ const Orders = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredOrders.length > 0 ? (
                 filteredOrders.map((order) => (
-                  <motion.tr
-                    key={order.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="hover:bg-gray-50"
-                  >
+                  <motion.tr key={order.id} initial={{opacity: 0}} animate={{opacity: 1}} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       #{order.id.slice(0, 8)}
                     </td>
@@ -208,6 +248,15 @@ const Orders = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {new Date(order.created_at).toLocaleDateString()}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {order.updated_at && order.updated_at !== order.created_at ? (
+                        <span className="text-blue-600 font-medium">
+                          {new Date(order.updated_at).toLocaleDateString()}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">Not updated</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <button
@@ -223,7 +272,7 @@ const Orders = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan="8" className="px-6 py-4 text-center text-gray-500">
                     <SafeIcon icon={FiPackage} className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                     <p className="text-base">No orders found</p>
                     <p className="text-sm text-gray-400">

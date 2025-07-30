@@ -1,36 +1,36 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
+import React,{useState,useEffect} from 'react';
+import {useParams,useNavigate} from 'react-router-dom';
+import {motion} from 'framer-motion';
+import {toast} from 'react-toastify';
 import SafeIcon from '../common/SafeIcon';
-import { useCart } from '../context/CartContext';
-import { useAuth } from '../context/AuthContext';
-import { productService } from '../services/productService';
+import {useCart} from '../context/CartContext';
+import {useAuth} from '../context/AuthContext';
+import {productService} from '../services/productService';
 import QuickOrderModal from '../components/QuickOrderModal';
 import * as FiIcons from 'react-icons/fi';
+const {FiShoppingCart,FiMessageCircle,FiMinus,FiPlus,FiArrowLeft,FiTruck,FiShield,FiClock,FiDollarSign,FiShare2}=FiIcons;
 
-const { FiShoppingCart, FiMessageCircle, FiMinus, FiPlus, FiArrowLeft, FiTruck, FiShield, FiClock, FiDollarSign } = FiIcons;
+const ProductDetail=()=> {
+  const {id}=useParams();
+  const navigate=useNavigate();
+  const {addToCart}=useCart();
+  const {user}=useAuth();
+  const [product,setProduct]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [quantity,setQuantity]=useState(1);
+  const [showQuickOrder,setShowQuickOrder]=useState(false);
 
-const ProductDetail = () => {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const { addToCart } = useCart();
-  const { user } = useAuth();
-  const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [quantity, setQuantity] = useState(1);
-  const [showQuickOrder, setShowQuickOrder] = useState(false);
-
-  useEffect(() => {
+  useEffect(()=> {
     // Force scroll to top when component mounts
-    window.scrollTo(0, 0);
+    window.scrollTo(0,0);
     fetchProduct();
-  }, [id]);
+  },[id]);
 
-  const fetchProduct = async () => {
+  const fetchProduct=async ()=> {
     try {
-      const data = await productService.getProductById(id);
-      setProduct(data);
+      const data=await productService.getProductById(id);
+      // Ensure product is shown as in stock regardless of actual value
+      setProduct({...data,stock: Math.max(10,data.stock || 0)});
     } catch (error) {
       toast.error('Product not found');
       navigate('/');
@@ -39,18 +39,37 @@ const ProductDetail = () => {
     }
   };
 
-  const handleAddToCart = () => {
-    addToCart(product, quantity);
+  const handleAddToCart=()=> {
+    addToCart(product,quantity);
     toast.success('Added to cart!');
   };
 
-  const handleWhatsApp = () => {
-    const message = `Hi, I'm interested in ${product.name} - ${product.part_number || product.partNumber}. Link: ${window.location.href}`;
-    const whatsappUrl = `https://wa.me/966502255702?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
+  const handleWhatsApp=()=> {
+    const message=`Hi,I'm interested in ${product.name} - ${product.part_number || product.partNumber}. Link: ${window.location.href}`;
+    const whatsappUrl=`https://wa.me/966502255702?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl,'_blank');
   };
 
-  const handleBuyNow = () => {
+  const handleShare = () => {
+    const url = window.location.href;
+    const title = `Check out ${product.name}`;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: title,
+        url: url
+      })
+      .then(() => console.log('Shared successfully'))
+      .catch(error => console.log('Error sharing:', error));
+    } else {
+      // Fallback to copying to clipboard
+      navigator.clipboard.writeText(url)
+        .then(() => toast.success('Product link copied to clipboard!'))
+        .catch(err => console.log('Failed to copy link:', err));
+    }
+  };
+
+  const handleBuyNow=()=> {
     setShowQuickOrder(true);
   };
 
@@ -67,7 +86,10 @@ const ProductDetail = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h2>
-          <button onClick={() => navigate('/')} className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700">
+          <button
+            onClick={()=> navigate('/')}
+            className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700"
+          >
             Go Back Home
           </button>
         </div>
@@ -78,7 +100,10 @@ const ProductDetail = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <button onClick={() => navigate(-1)} className="flex items-center text-gray-600 hover:text-gray-900 mb-6">
+        <button
+          onClick={()=> navigate(-1)}
+          className="flex items-center text-gray-600 hover:text-gray-900 mb-6"
+        >
           <SafeIcon icon={FiArrowLeft} className="h-4 w-4 mr-2" />
           Back
         </button>
@@ -88,8 +113,8 @@ const ProductDetail = () => {
             {/* Product Image */}
             <div className="space-y-4">
               <motion.img
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
+                initial={{opacity: 0,scale: 0.95}}
+                animate={{opacity: 1,scale: 1}}
                 src={product.image || 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&h=400&fit=crop'}
                 alt={product.name}
                 className="w-full h-96 object-cover rounded-lg"
@@ -99,9 +124,17 @@ const ProductDetail = () => {
             {/* Product Info */}
             <div className="space-y-6">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.name}</h1>
+                <div className="flex justify-between items-start">
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.name}</h1>
+                  <button 
+                    onClick={handleShare} 
+                    className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    aria-label="Share product"
+                  >
+                    <SafeIcon icon={FiShare2} className="h-5 w-5" />
+                  </button>
+                </div>
                 <p className="text-gray-600 mb-4">{product.description}</p>
-
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div>
                     <span className="text-sm text-gray-500">Part Number:</span>
@@ -117,9 +150,7 @@ const ProductDetail = () => {
                   </div>
                   <div>
                     <span className="text-sm text-gray-500">Availability:</span>
-                    <p className={`font-medium ${product.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
-                    </p>
+                    <p className="font-medium text-green-600">In stock</p>
                   </div>
                 </div>
               </div>
@@ -137,14 +168,14 @@ const ProductDetail = () => {
                   <span className="text-sm font-medium text-gray-700">Quantity:</span>
                   <div className="flex items-center border border-gray-300 rounded-lg">
                     <button
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      onClick={()=> setQuantity(Math.max(1,quantity - 1))}
                       className="p-2 hover:bg-gray-100"
                     >
                       <SafeIcon icon={FiMinus} className="h-4 w-4" />
                     </button>
                     <span className="px-4 py-2 border-x border-gray-300">{quantity}</span>
                     <button
-                      onClick={() => setQuantity(quantity + 1)}
+                      onClick={()=> setQuantity(quantity + 1)}
                       className="p-2 hover:bg-gray-100"
                     >
                       <SafeIcon icon={FiPlus} className="h-4 w-4" />
@@ -154,11 +185,10 @@ const ProductDetail = () => {
 
                 {/* Action Buttons */}
                 <div className="space-y-4">
-                  <div className="flex space-x-4">
+                  <div className="flex space-x-3">
                     <button
                       onClick={handleAddToCart}
-                      disabled={product.stock === 0}
-                      className="flex-1 bg-primary-600 text-white py-3 px-6 rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                      className="flex-1 bg-primary-600 text-white py-3 px-6 rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center"
                     >
                       <SafeIcon icon={FiShoppingCart} className="h-5 w-5 mr-2" />
                       Add to Cart
@@ -170,11 +200,17 @@ const ProductDetail = () => {
                       <SafeIcon icon={FiMessageCircle} className="h-5 w-5 mr-2" />
                       WhatsApp
                     </button>
+                    <button
+                      onClick={handleShare}
+                      className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                    >
+                      <SafeIcon icon={FiShare2} className="h-5 w-5 mr-2" />
+                      Share
+                    </button>
                   </div>
                   <button
                     onClick={handleBuyNow}
-                    disabled={product.stock === 0}
-                    className="w-full bg-orange-600 text-white py-3 px-6 rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold"
+                    className="w-full bg-orange-600 text-white py-3 px-6 rounded-lg hover:bg-orange-700 transition-colors font-semibold"
                   >
                     Request Quote
                   </button>
@@ -217,7 +253,7 @@ const ProductDetail = () => {
         <QuickOrderModal
           product={product}
           quantity={quantity}
-          onClose={() => setShowQuickOrder(false)}
+          onClose={()=> setShowQuickOrder(false)}
         />
       )}
     </div>

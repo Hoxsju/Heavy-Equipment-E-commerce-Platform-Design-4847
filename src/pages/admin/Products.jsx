@@ -6,11 +6,13 @@ import FilterBar from '../../components/FilterBar';
 import ProductModal from '../../components/ProductModal';
 import BulkEditModal from '../../components/BulkEditModal';
 import { productService } from '../../services/productService';
+import { useAuth } from '../../context/AuthContext';
 import * as FiIcons from 'react-icons/fi';
 
 const { FiPlus, FiEdit, FiTrash2, FiEye, FiCheck } = FiIcons;
 
 const Products = () => {
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,12 +55,12 @@ const Products = () => {
     filtered.sort((a, b) => {
       let aValue = a[sortBy];
       let bValue = b[sortBy];
-      
+
       if (typeof aValue === 'string') {
         aValue = aValue.toLowerCase();
         bValue = bValue.toLowerCase();
       }
-      
+
       if (sortOrder === 'asc') {
         return aValue > bValue ? 1 : -1;
       } else {
@@ -71,20 +73,71 @@ const Products = () => {
 
   const handleSaveProduct = async (productData) => {
     try {
+      console.log('Saving product from Products page:', productData);
+      console.log('Current user:', user);
+      
       setLoading(true);
+      let result;
+
       if (editingProduct) {
-        await productService.updateProduct(editingProduct.id, productData);
-        toast.success('Product updated successfully');
+        console.log('Updating existing product:', editingProduct.id);
+        
+        // Enhanced error handling for updates
+        try {
+          result = await productService.updateProduct(editingProduct.id, productData);
+          console.log('Update result:', result);
+          toast.success('Product updated successfully');
+        } catch (updateError) {
+          console.error('Update failed:', updateError);
+          
+          // Handle specific error cases
+          if (updateError.message?.includes('permission') || updateError.message?.includes('policy')) {
+            toast.error('Permission denied: Unable to update product. Please contact your administrator.');
+          } else if (updateError.message?.includes('Database error')) {
+            toast.error('Database error: Please check your internet connection and try again.');
+          } else {
+            toast.error(`Update failed: ${updateError.message}`);
+          }
+          return; // Exit early on error
+        }
       } else {
-        await productService.createProduct(productData);
-        toast.success('Product created successfully');
+        console.log('Creating new product');
+        try {
+          result = await productService.createProduct(productData);
+          console.log('Create result:', result);
+          toast.success('Product created successfully');
+        } catch (createError) {
+          console.error('Create failed:', createError);
+          toast.error(`Create failed: ${createError.message}`);
+          return; // Exit early on error
+        }
       }
+
       setShowModal(false);
       setEditingProduct(null);
-      fetchProducts();
+      await fetchProducts(); // Refresh the products list
+
     } catch (error) {
       console.error('Error saving product:', error);
-      toast.error('Error saving product');
+      
+      // More specific error handling
+      let errorMessage = `Failed to ${editingProduct ? 'update' : 'create'} product`;
+      
+      if (error.message) {
+        if (error.message.includes('permission') || error.message.includes('denied')) {
+          errorMessage = 'Permission denied. Please check your user role and try again.';
+        } else if (error.message.includes('duplicate') || error.message.includes('unique')) {
+          errorMessage = 'A product with this part number already exists';
+        } else if (error.message.includes('required') || error.message.includes('not null')) {
+          errorMessage = 'Please fill in all required fields';
+        } else if (error.message.includes('Database') || error.message.includes('database')) {
+          errorMessage = 'Database error. Please try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -104,8 +157,8 @@ const Products = () => {
   };
 
   const handleSelectProduct = (productId) => {
-    setSelectedProducts(prev => 
-      prev.includes(productId) 
+    setSelectedProducts(prev =>
+      prev.includes(productId)
         ? prev.filter(id => id !== productId)
         : [...prev, productId]
     );
@@ -129,7 +182,7 @@ const Products = () => {
     try {
       // Get selected products data first
       const selectedProductsData = products.filter(p => selectedProducts.includes(p.id));
-      
+
       // Process each product individually for better error handling
       let successCount = 0;
       let errorCount = 0;
@@ -154,8 +207,7 @@ const Products = () => {
 
           // Handle brands update
           if (updates.brands) {
-            const currentBrands = Array.isArray(product.brands) ? product.brands : 
-                                (product.brand ? [product.brand] : []);
+            const currentBrands = Array.isArray(product.brands) ? product.brands : (product.brand ? [product.brand] : []);
             
             if (updates.brands.action === 'add') {
               // Add new brands without duplicates
@@ -176,8 +228,7 @@ const Products = () => {
 
           // Handle categories update
           if (updates.categories) {
-            const currentCategories = Array.isArray(product.categories) ? product.categories : 
-                                    (product.category ? [product.category] : []);
+            const currentCategories = Array.isArray(product.categories) ? product.categories : (product.category ? [product.category] : []);
             
             if (updates.categories.action === 'add') {
               // Add new categories without duplicates
@@ -202,6 +253,7 @@ const Products = () => {
           // Save the updated product
           await productService.updateProduct(product.id, updateData);
           successCount++;
+
         } catch (error) {
           console.error(`Error updating product ${product.id}:`, error);
           errorCount++;
@@ -218,6 +270,7 @@ const Products = () => {
       setShowBulkEditModal(false);
       setSelectedProducts([]);
       fetchProducts();
+
     } catch (error) {
       console.error('Bulk edit error:', error);
       toast.error(`Error updating products: ${error.message}`);
@@ -245,6 +298,9 @@ const Products = () => {
     }
   };
 
+  // Check if current user can perform product operations
+  const canEditProducts = user && ['admin', 'main_admin', 'sub_admin'].includes(user.role);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -257,8 +313,9 @@ const Products = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Products</h1>
+        
         <div className="flex space-x-2">
-          {selectedProducts.length > 0 && (
+          {selectedProducts.length > 0 && canEditProducts && (
             <>
               <button
                 onClick={() => setShowBulkEditModal(true)}
@@ -276,14 +333,24 @@ const Products = () => {
               </button>
             </>
           )}
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center"
-          >
-            <SafeIcon icon={FiPlus} className="h-4 w-4 mr-2" />
-            Add Product
-          </button>
+          
+          {canEditProducts && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center"
+            >
+              <SafeIcon icon={FiPlus} className="h-4 w-4 mr-2" />
+              Add Product
+            </button>
+          )}
         </div>
+      </div>
+
+      {/* User Role Info */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm text-blue-800">
+          <strong>Current Role:</strong> {user?.role} - {canEditProducts ? ' You can create and edit products' : ' You have read-only access'}
+        </p>
       </div>
 
       <FilterBar
@@ -308,14 +375,16 @@ const Products = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <input
-                    type="checkbox"
-                    checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
-                    onChange={handleSelectAll}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
-                </th>
+                {canEditProducts && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
+                      onChange={handleSelectAll}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    />
+                  </th>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Product
                 </th>
@@ -347,14 +416,16 @@ const Products = () => {
                   animate={{ opacity: 1 }}
                   className="hover:bg-gray-50"
                 >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <input
-                      type="checkbox"
-                      checked={selectedProducts.includes(product.id)}
-                      onChange={() => handleSelectProduct(product.id)}
-                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                    />
-                  </td>
+                  {canEditProducts && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedProducts.includes(product.id)}
+                        onChange={() => handleSelectProduct(product.id)}
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <img
@@ -391,21 +462,34 @@ const Products = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <button
-                        onClick={() => {
-                          setEditingProduct(product);
-                          setShowModal(true);
-                        }}
-                        className="text-primary-600 hover:text-primary-900"
-                      >
-                        <SafeIcon icon={FiEdit} className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteProduct(product.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <SafeIcon icon={FiTrash2} className="h-4 w-4" />
-                      </button>
+                      {canEditProducts ? (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditingProduct(product);
+                              setShowModal(true);
+                            }}
+                            className="text-primary-600 hover:text-primary-900"
+                            title="Edit product"
+                          >
+                            <SafeIcon icon={FiEdit} className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="text-red-600 hover:text-red-900"
+                            title="Delete product"
+                          >
+                            <SafeIcon icon={FiTrash2} className="h-4 w-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="text-gray-400 cursor-not-allowed"
+                          title="View only - no edit permissions"
+                        >
+                          <SafeIcon icon={FiEye} className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </motion.tr>
@@ -416,7 +500,7 @@ const Products = () => {
       </div>
 
       {/* Product Modal */}
-      {showModal && (
+      {showModal && canEditProducts && (
         <ProductModal
           product={editingProduct}
           onSave={handleSaveProduct}
@@ -428,7 +512,7 @@ const Products = () => {
       )}
 
       {/* Bulk Edit Modal */}
-      {showBulkEditModal && (
+      {showBulkEditModal && canEditProducts && (
         <BulkEditModal
           selectedProducts={selectedProducts}
           onSave={handleBulkEdit}

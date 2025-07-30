@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 
@@ -7,15 +8,22 @@ const { FiHome, FiPackage, FiUsers, FiShoppingBag, FiSettings, FiDownload, FiUse
 
 const AdminSidebar = () => {
   const location = useLocation();
+  const { user } = useAuth();
 
-  const menuItems = [
-    { path: '/admin', icon: FiHome, label: 'Dashboard' },
-    { path: '/admin/products', icon: FiPackage, label: 'Products' },
-    { path: '/admin/users', icon: FiUsers, label: 'Users' },
-    { path: '/admin/orders', icon: FiShoppingBag, label: 'Orders' },
-    { path: '/admin/import', icon: FiDownload, label: 'Import Products' },
-    { path: '/admin/settings', icon: FiSettings, label: 'Settings' },
+  // Define all menu items with permission requirements
+  const allMenuItems = [
+    { path: '/admin', icon: FiHome, label: 'Dashboard', permissions: ['admin', 'main_admin', 'sub_admin'] },
+    { path: '/admin/products', icon: FiPackage, label: 'Products', permissions: ['admin', 'main_admin', 'sub_admin'] },
+    { path: '/admin/users', icon: FiUsers, label: 'Users', permissions: ['admin', 'main_admin', 'sub_admin'] },
+    { path: '/admin/orders', icon: FiShoppingBag, label: 'Orders', permissions: ['admin', 'main_admin', 'sub_admin'] },
+    { path: '/admin/import', icon: FiDownload, label: 'Import Products', permissions: ['admin', 'main_admin'] }, // Excluded for sub_admin
+    { path: '/admin/settings', icon: FiSettings, label: 'Settings', permissions: ['admin', 'main_admin'] }, // Excluded for sub_admin
   ];
+
+  // Filter menu items based on user permissions
+  const menuItems = allMenuItems.filter(item => 
+    user && item.permissions.includes(user.role)
+  );
 
   return (
     <div className="w-64 bg-white shadow-sm h-screen">
@@ -25,7 +33,7 @@ const AdminSidebar = () => {
           <span>HeavyParts</span>
         </Link>
       </div>
-      
+
       <nav className="mt-8">
         <div className="px-4 space-y-2">
           {menuItems.map((item) => (
@@ -43,13 +51,26 @@ const AdminSidebar = () => {
             </Link>
           ))}
         </div>
-        
+
         <div className="mt-8 px-4">
-          <Link to="/" className="flex items-center px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-50 border border-gray-200">
+          <Link
+            to="/"
+            className="flex items-center px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-50 border border-gray-200"
+          >
             <SafeIcon icon={FiHome} className="h-5 w-5 mr-3" />
             Back to Store
           </Link>
         </div>
+
+        {/* Role indicator for debugging */}
+        {user && (
+          <div className="mt-4 px-4">
+            <div className="text-xs text-gray-500 bg-gray-100 rounded-lg p-2">
+              <p><strong>Role:</strong> {user.role}</p>
+              <p><strong>User:</strong> {user.firstName} {user.lastName}</p>
+            </div>
+          </div>
+        )}
       </nav>
     </div>
   );

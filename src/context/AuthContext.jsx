@@ -16,16 +16,31 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Initialize auth on component mount
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        console.log('AuthContext: Initializing authentication...');
+        // First check localStorage for demo accounts
+        const storedUser = localStorage.getItem('auth_user');
+        if (storedUser) {
+          const userData = JSON.parse(storedUser);
+          console.log('Found user in localStorage:', userData);
+          setUser(userData);
+          setLoading(false);
+          return;
+        }
+        
+        // Otherwise try to get from Supabase session
         const userData = await authService.getCurrentUser();
         if (userData) {
           console.log('Found existing user session:', userData);
           setUser(userData);
+        } else {
+          console.log('No active session found');
         }
       } catch (error) {
-        console.log('No active session');
+        console.error('Error initializing auth:', error);
         setUser(null);
       } finally {
         setLoading(false);
@@ -35,11 +50,42 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
+  // Handle user role and status updates
+  useEffect(() => {
+    if (!user) return;
+    
+    const handleUserRoleUpdate = (e) => {
+      const { userId, newRole } = e.detail;
+      if (user && user.id === userId) {
+        console.log(`User role changed from ${user.role} to ${newRole}`);
+        setUser(prev => ({ ...prev, role: newRole }));
+      }
+    };
+
+    const handleUserStatusUpdate = (e) => {
+      const { userId, newStatus } = e.detail;
+      if (user && user.id === userId) {
+        setUser(prev => ({ ...prev, status: newStatus }));
+        
+        if (newStatus === 'suspended') {
+          toast.error('Your account has been suspended. You will be logged out.');
+          setTimeout(() => logout(), 2000);
+        }
+      }
+    };
+
+    window.addEventListener('userRoleUpdated', handleUserRoleUpdate);
+    window.addEventListener('userStatusUpdated', handleUserStatusUpdate);
+    
+    return () => {
+      window.removeEventListener('userRoleUpdated', handleUserRoleUpdate);
+      window.removeEventListener('userStatusUpdated', handleUserStatusUpdate);
+    };
+  }, [user]);
+
   const login = async (email, password) => {
     try {
-      console.log('Login attempt for:', email);
-      
-      // Special cases for demo accounts
+      // Handle demo accounts directly
       if (email === 'admin@demo.com' || email === 'demo@demo.com') {
         const demoUser = {
           id: email === 'admin@demo.com' ? 'demo-admin-id' : 'demo-user-id',
@@ -49,50 +95,16 @@ export const AuthProvider = ({ children }) => {
           role: email === 'admin@demo.com' ? 'admin' : 'user'
         };
         
-        console.log('Setting demo user:', demoUser);
         setUser(demoUser);
-        
-        // Store in localStorage for persistence
         localStorage.setItem('auth_user', JSON.stringify(demoUser));
-        
-        return { user: demoUser, needsConfirmation: false };
+        return { user: demoUser };
       }
       
-      // Try to get user from database
-      try {
-        const response = await authService.login(email, password);
-        console.log('Database login response:', response);
-        
-        // Only set user in state if email is confirmed
-        if (!response.needsConfirmation) {
-          console.log('Setting confirmed user:', response.user);
-          setUser(response.user);
-          // Store in localStorage for persistence
-          localStorage.setItem('auth_user', JSON.stringify(response.user));
-        }
-        
-        return response;
-      } catch (error) {
-        console.error('Database login failed:', error);
-        
-        // For testing purposes, create a fake user if database fails
-        console.log('Creating test user for email:', email);
-        const testUser = {
-          id: 'test-' + Date.now(),
-          email: email,
-          firstName: 'Test',
-          lastName: 'User',
-          role: email.includes('admin') ? 'admin' : 'user'
-        };
-        
-        console.log('Setting test user:', testUser);
-        setUser(testUser);
-        
-        // Store in localStorage for persistence
-        localStorage.setItem('auth_user', JSON.stringify(testUser));
-        
-        return { user: testUser, needsConfirmation: false };
-      }
+      // Regular login via service
+      const response = await authService.login(email, password);
+      setUser(response.user);
+      localStorage.setItem('auth_user', JSON.stringify(response.user));
+      return response;
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -101,104 +113,29 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      // Try the real registration
-      try {
-        const response = await authService.register(userData);
-        
-        // Only set user in state if email is confirmed (main admin)
-        if (!response.needsConfirmation) {
-          setUser(response.user);
-          localStorage.setItem('auth_user', JSON.stringify(response.user));
-        }
-        
-        return response;
-      } catch (error) {
-        console.error('Database registration failed:', error);
-        
-        // For testing, create a test user with confirmation required
-        console.log('Creating test registration for:', userData.email);
-        const testUser = {
-          id: 'test-' + Date.now(),
-          email: userData.email,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          role: 'user'
-        };
-        
-        // For testing, we'll always require confirmation
-        return { 
-          needsConfirmation: true, 
-          user: testUser 
-        };
+      const response = await authService.register(userData);
+      
+      // Only set user if email is confirmed (main admin)
+      if (response.user && !response.message) {
+        setUser(response.user);
+        localStorage.setItem('auth_user', JSON.stringify(response.user));
       }
+      
+      return response;
     } catch (error) {
       console.error('Registration failed:', error);
       throw error;
     }
   };
 
-  const confirmEmail = async (email, otp) => {
-    try {
-      // For testing purposes, any OTP is valid
-      console.log(`Confirming email for ${email} with code ${otp}`);
-      
-      // Create a user with the confirmed email
-      const confirmedUser = {
-        id: 'confirmed-' + Date.now(),
-        email: email,
-        firstName: 'Test',
-        lastName: 'User',
-        role: 'user',
-        emailConfirmed: true
-      };
-      
-      console.log('Setting confirmed user:', confirmedUser);
-      setUser(confirmedUser);
-      
-      // Store in localStorage for persistence
-      localStorage.setItem('auth_user', JSON.stringify(confirmedUser));
-      
-      return { user: confirmedUser };
-    } catch (error) {
-      console.error('Email confirmation failed:', error);
-      
-      // For demo purposes, still create a user and return success
-      const demoUser = {
-        id: 'demo-' + Date.now(),
-        email: email,
-        firstName: 'Demo',
-        lastName: 'User',
-        role: 'user',
-        emailConfirmed: true
-      };
-      
-      setUser(demoUser);
-      localStorage.setItem('auth_user', JSON.stringify(demoUser));
-      
-      return { user: demoUser };
-    }
-  };
-
   const updateProfile = async (userData) => {
     try {
-      // For testing, just update the user in state
-      const updatedUser = {
-        ...user,
-        ...userData,
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-        phone: userData.phone,
-        address: userData.address,
-        city: userData.city,
-        state: userData.state,
-        zipCode: userData.zipCode,
-        country: userData.country
-      };
+      const updatedUser = await authService.updateProfile(userData);
       
-      setUser(updatedUser);
-      
-      // Update localStorage
-      localStorage.setItem('auth_user', JSON.stringify(updatedUser));
+      // Update user in state
+      const newUser = { ...user, ...updatedUser };
+      setUser(newUser);
+      localStorage.setItem('auth_user', JSON.stringify(newUser));
       
       return updatedUser;
     } catch (error) {
@@ -209,14 +146,32 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      // Clear user state and localStorage
+      await authService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Always clear state and storage
       setUser(null);
       localStorage.removeItem('auth_user');
       toast.success("Logged out successfully");
+    }
+  };
+
+  // Simplified refreshCurrentUser function that won't cause loops
+  const refreshCurrentUser = async () => {
+    if (!user) return null;
+    
+    try {
+      const userData = await authService.getCurrentUser();
+      if (userData) {
+        setUser(userData);
+        localStorage.setItem('auth_user', JSON.stringify(userData));
+        return userData;
+      }
+      return user;
     } catch (error) {
-      console.error('Logout failed:', error);
-      setUser(null);
-      localStorage.removeItem('auth_user');
+      console.error('Error refreshing user data:', error);
+      return user;
     }
   };
 
@@ -224,11 +179,11 @@ export const AuthProvider = ({ children }) => {
     user,
     login,
     register,
-    confirmEmail,
     updateProfile,
     logout,
+    refreshCurrentUser,
     loading,
-    isAdmin: user?.role === 'admin' || user?.role === 'main_admin',
+    isAdmin: user?.role === 'admin' || user?.role === 'main_admin' || user?.role === 'sub_admin',
     isMainAdmin: user?.role === 'main_admin',
   };
 
@@ -238,3 +193,5 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+export { AuthContext };

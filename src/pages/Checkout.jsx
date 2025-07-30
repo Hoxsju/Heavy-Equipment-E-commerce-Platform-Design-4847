@@ -74,6 +74,7 @@ const Checkout = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -121,23 +122,31 @@ const Checkout = () => {
           email: formData.email || user?.email,
           phone: formData.phone || user?.phone
         },
-        deliveryAddress: user ? user.address : `${formData.address}, ${formData.city}, ${formData.state} ${formData.zipCode}, ${formData.country}`,
+        deliveryAddress: user ? 
+          `${user.address || formData.address}, ${user.city || formData.city}, ${user.state || formData.state} ${user.zipCode || formData.zipCode}, ${user.country || formData.country}` : 
+          `${formData.address}, ${formData.city}, ${formData.state} ${formData.zipCode}, ${formData.country}`,
         deliveryDate: formData.deliveryDate,
         notes: formData.notes
       };
 
-      // Try to create the order in the database
+      // Create the order in the database
       try {
+        console.log("Submitting order to database:", orderData);
         const order = await orderService.createOrder(orderData);
         console.log("Order created successfully:", order);
+        
+        // Clear the cart after successful order
+        clearCart();
+        
+        // Show success message
+        toast.success('Quote request submitted! We will contact you soon.');
+        
+        // Navigate to profile page
+        navigate('/profile');
       } catch (err) {
-        console.error("Error creating order in database, but continuing:", err);
-        // Continue with the process even if database creation fails
+        console.error("Error creating order in database:", err);
+        toast.error('Error submitting request. Please try again.');
       }
-
-      clearCart();
-      toast.success('Quote request submitted! We will contact you soon.');
-      navigate('/profile');
     } catch (error) {
       console.error('Error placing order:', error);
       toast.error('Error submitting request. Please try again.');
@@ -185,6 +194,7 @@ const Checkout = () => {
                       />
                       {errors.lastName && <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>}
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                       <input
@@ -214,6 +224,7 @@ const Checkout = () => {
                       <SafeIcon icon={FiMapPin} className="inline h-5 w-5 mr-2" />
                       Delivery Address
                     </h2>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
                       <input
@@ -225,6 +236,7 @@ const Checkout = () => {
                       />
                       {errors.address && <p className="mt-1 text-sm text-red-600">{errors.address}</p>}
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
@@ -249,6 +261,7 @@ const Checkout = () => {
                         {errors.state && <p className="mt-1 text-sm text-red-600">{errors.state}</p>}
                       </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">ZIP Code</label>
@@ -283,6 +296,7 @@ const Checkout = () => {
                   <SafeIcon icon={FiCalendar} className="inline h-5 w-5 mr-2" />
                   Request Details
                 </h2>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Desired Delivery Date</label>
                   <input
@@ -295,6 +309,7 @@ const Checkout = () => {
                   />
                   {errors.deliveryDate && <p className="mt-1 text-sm text-red-600">{errors.deliveryDate}</p>}
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Special Requirements</label>
                   <textarea
@@ -313,8 +328,7 @@ const Checkout = () => {
                   <SafeIcon icon={FiInfo} className="h-5 w-5 text-blue-500 mr-2 mt-0.5" />
                   <div>
                     <p className="text-sm text-blue-700">
-                      Your request will be reviewed by our team, and we'll provide a personalized quotation based on your specific requirements. 
-                      We'll contact you via email or phone to discuss pricing and delivery details.
+                      Your request will be reviewed by our team, and we'll provide a personalized quotation based on your specific requirements. We'll contact you via email or phone to discuss pricing and delivery details.
                     </p>
                   </div>
                 </div>
@@ -328,20 +342,8 @@ const Checkout = () => {
                 {loading ? (
                   <span className="flex items-center justify-center">
                     <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                        fill="none"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
                     Processing...
                   </span>
@@ -356,7 +358,7 @@ const Checkout = () => {
           <div className="lg:sticky lg:top-8 h-fit">
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Items Summary</h2>
-              
+
               <div className="space-y-4 mb-6">
                 {cartItems.map((item) => (
                   <div key={item.id} className="flex items-center space-x-4">

@@ -22,13 +22,13 @@ const Register = () => {
   const [errors, setErrors] = useState({});
   const [showExistingAccountOptions, setShowExistingAccountOptions] = useState(false);
   const [existingAccountEmail, setExistingAccountEmail] = useState('');
-  const [existingAccountStatus, setExistingAccountStatus] = useState(''); // 'confirmed' or 'unconfirmed'
+
   const { register } = useAuth();
   const navigate = useNavigate();
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
     if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
     
@@ -75,6 +75,7 @@ const Register = () => {
     }
 
     setLoading(true);
+
     try {
       console.log('Submitting registration form...', {
         firstName: formData.firstName,
@@ -86,24 +87,13 @@ const Register = () => {
       const result = await register(formData);
       console.log('Registration successful:', result);
 
-      // Check if email needs confirmation
-      if (result.needsConfirmation) {
-        toast.success('Registration successful! Please check your email, SMS, and WhatsApp for verification code.');
-        // Use navigate with state to pass both email and phone
-        navigate('/confirm-email', {
-          state: {
-            email: formData.email,
-            phone: formData.phone
-          }
-        });
+      // Direct login - no email verification needed
+      if (result.user) {
+        toast.success('Registration successful! You are now logged in.');
+        navigate('/profile');
       } else {
-        // For main admin (hoxs@regravity.net), no need for confirmation
-        toast.success('Registration successful! Welcome to HeavyParts!');
-        if (result.user.role === 'admin' || result.user.role === 'main_admin') {
-          navigate('/admin');
-        } else {
-          navigate('/profile');
-        }
+        toast.success('Registration successful!');
+        navigate('/login', { state: { email: formData.email } });
       }
     } catch (error) {
       console.error('Registration failed:', error);
@@ -111,26 +101,21 @@ const Register = () => {
       // Handle existing account without showing error
       if (error.message && (error.message.includes('already exists') || error.message.includes('already registered'))) {
         setExistingAccountEmail(formData.email);
-        
-        // Check if account is confirmed or not
-        if (error.message.includes('unconfirmed')) {
-          setExistingAccountStatus('unconfirmed');
-          toast.info('We found your account! Since your email isn\'t confirmed yet, we\'ll send you a verification code.');
-        } else {
-          setExistingAccountStatus('confirmed');
-          toast.info('We found your account! You can sign in or reset your password if needed.');
-        }
-        
+        toast.info('We found your account! You can sign in or reset your password if needed.');
         setShowExistingAccountOptions(true);
       } else {
         // Handle other errors gracefully
-        let errorMessage = 'Something went wrong. Please try again.';
+        let errorMessage = 'Registration failed. Please try again.';
         
         if (error.message) {
-          if (error.message.includes('invalid email')) {
+          if (error.message.includes('invalid email') || error.message.includes('Invalid email')) {
             errorMessage = 'Please enter a valid email address.';
-          } else if (error.message.includes('weak password')) {
-            errorMessage = 'Password is too weak. Please use at least 8 characters.';
+          } else if (error.message.includes('weak password') || error.message.includes('Password')) {
+            errorMessage = 'Password must be at least 6 characters long.';
+          } else if (error.message.includes('network') || error.message.includes('fetch')) {
+            errorMessage = 'Network error. Please check your connection and try again.';
+          } else {
+            errorMessage = error.message;
           }
         }
         
@@ -143,15 +128,6 @@ const Register = () => {
 
   const handleGoToLogin = () => {
     navigate('/login', { state: { email: existingAccountEmail } });
-  };
-
-  const handleResendConfirmation = () => {
-    navigate('/confirm-email', { 
-      state: { 
-        email: existingAccountEmail, 
-        phone: formData.phone 
-      } 
-    });
   };
 
   return (
@@ -169,6 +145,17 @@ const Register = () => {
           </p>
         </div>
 
+        {/* Domain Info */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center mb-2">
+            <SafeIcon icon={FiInfo} className="h-5 w-5 text-blue-500 mr-2" />
+            <h3 className="text-sm font-medium text-blue-900">Account Creation</h3>
+          </div>
+          <p className="text-sm text-blue-700">
+            Your account will be created instantly. No email verification required.
+          </p>
+        </div>
+
         {/* Existing Account Alert */}
         {showExistingAccountOptions && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -180,21 +167,13 @@ const Register = () => {
                 <h3 className="text-sm font-medium text-blue-800">Account already exists</h3>
                 <div className="mt-2 text-sm text-blue-700">
                   <p>An account with this email already exists.</p>
-                  <div className="mt-3 flex gap-3">
+                  <div className="mt-3">
                     <button
                       onClick={handleGoToLogin}
                       className="bg-blue-100 text-blue-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-blue-200"
                     >
                       Sign In
                     </button>
-                    {existingAccountStatus === 'unconfirmed' && (
-                      <button
-                        onClick={handleResendConfirmation}
-                        className="bg-blue-100 text-blue-800 px-3 py-1 rounded-md text-sm font-medium hover:bg-blue-200"
-                      >
-                        Confirm Email
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
@@ -299,7 +278,7 @@ const Register = () => {
                 <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
               )}
               <p className="mt-1 text-xs text-gray-500">
-                For SMS and WhatsApp verification and order notifications
+                For order notifications and communications
               </p>
             </div>
 

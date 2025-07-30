@@ -1,26 +1,36 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
+import React, {useState, useEffect} from 'react';
+import {motion} from 'framer-motion';
+import {toast} from 'react-toastify';
 import SafeIcon from '../common/SafeIcon';
-import { useAuth } from '../context/AuthContext';
-import { orderService } from '../services/orderService';
+import {useAuth} from '../context/AuthContext';
+import {orderService} from '../services/orderService';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiX, FiCalendar, FiMapPin, FiMessageCircle, FiDollarSign, FiSave, FiEdit } = FiIcons;
+const {FiX, FiCalendar, FiMapPin, FiMessageCircle, FiDollarSign, FiSave, FiEdit, FiRefreshCw, FiMail} = FiIcons;
 
-const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
-  const { user } = useAuth();
+const OrderDetailModal = ({order, onClose, onUpdate, isAdmin = false}) => {
+  const {user} = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [updatedOrder, setUpdatedOrder] = useState({
     ...order,
-    item_prices: order.item_prices || order.items.map(item => ({
-      id: item.id,
-      price: 0
-    })),
+    item_prices: order.item_prices || order.items.map(item => ({id: item.id, price: 0})),
     total_price: order.total_price || 0,
     status: order.status || 'pending'
   });
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  // Update local state when order prop changes
+  useEffect(() => {
+    console.log('Order prop changed:', order);
+    setUpdatedOrder({
+      ...order,
+      item_prices: order.item_prices || order.items.map(item => ({id: item.id, price: 0})),
+      total_price: order.total_price || 0,
+      status: order.status || 'pending'
+    });
+  }, [order]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -37,13 +47,13 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
     const numericPrice = parseFloat(price) || 0;
     
     // Update the item price in the item_prices array
-    const updatedItemPrices = updatedOrder.item_prices.map(item => 
-      item.id === itemId ? { ...item, price: numericPrice } : item
+    const updatedItemPrices = updatedOrder.item_prices.map(item =>
+      item.id === itemId ? {...item, price: numericPrice} : item
     );
     
     // If the item doesn't exist in the array, add it
     if (!updatedItemPrices.some(item => item.id === itemId)) {
-      updatedItemPrices.push({ id: itemId, price: numericPrice });
+      updatedItemPrices.push({id: itemId, price: numericPrice});
     }
     
     // Calculate the total price
@@ -52,7 +62,7 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
       const quantity = orderItem ? orderItem.quantity : 1;
       return sum + (item.price * quantity);
     }, 0);
-    
+
     setUpdatedOrder({
       ...updatedOrder,
       item_prices: updatedItemPrices,
@@ -67,32 +77,113 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
     });
   };
 
+  const handleRefreshOrder = async () => {
+    if (!order.id) return;
+    
+    setRefreshing(true);
+    try {
+      console.log('Refreshing order data for:', order.id);
+      const refreshedOrder = await orderService.getOrderById(order.id);
+      console.log('Refreshed order data:', refreshedOrder);
+      
+      if (refreshedOrder) {
+        // Update local state with refreshed data
+        setUpdatedOrder({
+          ...refreshedOrder,
+          item_prices: refreshedOrder.item_prices || refreshedOrder.items.map(item => ({id: item.id, price: 0})),
+          total_price: refreshedOrder.total_price || 0,
+          status: refreshedOrder.status || 'pending'
+        });
+        
+        // Notify parent component of the update
+        if (onUpdate) {
+          onUpdate(refreshedOrder);
+        }
+        
+        toast.success('Order data refreshed successfully');
+      }
+    } catch (error) {
+      console.error('Error refreshing order:', error);
+      toast.error('Failed to refresh order data');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleSendNotification = async () => {
+    if (!updatedOrder || !updatedOrder.customer_email) {
+      toast.error('Cannot send notification: Missing customer email');
+      return;
+    }
+    
+    setSendingEmail(true);
+    try {
+      const result = await orderService.sendOrderUpdateNotification(updatedOrder);
+      
+      if (result.success) {
+        toast.success('Order update notification sent to customer');
+      } else {
+        toast.error(`Failed to send notification: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      toast.error('Failed to send notification');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   const handleSaveChanges = async () => {
     setLoading(true);
     try {
+      console.log('Saving order changes...', {
+        orderId: order.id,
+        updates: {
+          status: updatedOrder.status,
+          item_prices: updatedOrder.item_prices,
+          total_price: updatedOrder.total_price
+        }
+      });
+
       // Save the updated order to the database
-      await orderService.updateOrder(order.id, {
+      const result = await orderService.updateOrder(order.id, {
         status: updatedOrder.status,
         item_prices: updatedOrder.item_prices,
         total_price: updatedOrder.total_price
       });
-      
-      toast.success('Order updated successfully');
-      
-      // Call the onUpdate callback to refresh the orders list
-      if (onUpdate) {
-        onUpdate({
+
+      if (result.success) {
+        console.log('Order update successful:', result.data);
+        
+        // Update the local state with the returned data
+        const savedOrder = result.data || {
           ...order,
           status: updatedOrder.status,
           item_prices: updatedOrder.item_prices,
-          total_price: updatedOrder.total_price
+          total_price: updatedOrder.total_price,
+          updated_at: new Date().toISOString()
+        };
+        
+        setUpdatedOrder(savedOrder);
+        
+        // Call the onUpdate callback to refresh the orders list
+        if (onUpdate) {
+          onUpdate(savedOrder);
+        }
+        
+        toast.success('Order updated successfully');
+        setIsEditing(false);
+        
+        // Show confirmation that email notification will be sent
+        toast.info('Email notification will be sent to the customer', {
+          autoClose: 5000
         });
+      } else {
+        throw new Error('Update failed - no success status returned');
       }
-      
-      setIsEditing(false);
     } catch (error) {
       console.error('Error updating order:', error);
-      toast.error('Failed to update order');
+      toast.error('Failed to update order: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -104,31 +195,59 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
+    return new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(amount);
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{opacity: 0, scale: 0.95}}
+        animate={{opacity: 1, scale: 1}}
         className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-900">
             Order #{order.id.slice(0, 8)}
           </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <SafeIcon icon={FiX} className="h-6 w-6" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {isAdmin && (
+              <>
+                <button
+                  onClick={handleRefreshOrder}
+                  disabled={refreshing}
+                  className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50"
+                  title="Refresh order data"
+                >
+                  <SafeIcon 
+                    icon={FiRefreshCw} 
+                    className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} 
+                  />
+                </button>
+                
+                {!isEditing && (
+                  <button
+                    onClick={handleSendNotification}
+                    disabled={sendingEmail}
+                    className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-50"
+                    title="Send notification email"
+                  >
+                    <SafeIcon 
+                      icon={FiMail} 
+                      className={`h-5 w-5 ${sendingEmail ? 'animate-spin' : ''}`} 
+                    />
+                  </button>
+                )}
+              </>
+            )}
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <SafeIcon icon={FiX} className="h-6 w-6" />
+            </button>
+          </div>
         </div>
-        
+
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -136,8 +255,12 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
               <span className="text-sm text-gray-600">
                 Ordered on {new Date(order.created_at).toLocaleDateString()}
               </span>
+              {order.updated_at && order.updated_at !== order.created_at && (
+                <span className="text-sm text-blue-600">
+                  (Updated: {new Date(order.updated_at).toLocaleDateString()})
+                </span>
+              )}
             </div>
-            
             {isAdmin && isEditing ? (
               <select
                 value={updatedOrder.status}
@@ -156,7 +279,7 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
               </span>
             )}
           </div>
-          
+
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Delivery Information</h3>
             <div className="bg-gray-50 p-4 rounded-lg">
@@ -176,7 +299,7 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
               </div>
             </div>
           </div>
-          
+
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Order Items</h3>
             <div className="bg-gray-50 rounded-lg overflow-hidden">
@@ -200,7 +323,6 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
                       <td className="px-4 py-3 text-sm text-gray-900">{item.name}</td>
                       <td className="px-4 py-3 text-sm text-gray-500">{item.part_number}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 text-center">{item.quantity}</td>
-                      
                       {(updatedOrder.item_prices?.length > 0 || isAdmin) && (
                         <td className="px-4 py-3 text-sm text-gray-900 text-right">
                           {isAdmin && isEditing ? (
@@ -217,7 +339,6 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
                           )}
                         </td>
                       )}
-                      
                       {(updatedOrder.item_prices?.length > 0 || isAdmin) && (
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
                           {formatCurrency(getItemPrice(item.id) * item.quantity)}
@@ -226,7 +347,6 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
                     </tr>
                   ))}
                 </tbody>
-                
                 {(updatedOrder.item_prices?.length > 0 || isAdmin) && (
                   <tfoot className="bg-gray-50">
                     <tr>
@@ -241,7 +361,7 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
               </table>
             </div>
           </div>
-          
+
           {order.notes && (
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Notes</h3>
@@ -250,7 +370,7 @@ const OrderDetailModal = ({ order, onClose, onUpdate, isAdmin = false }) => {
               </div>
             </div>
           )}
-          
+
           <div className="flex justify-end space-x-4">
             <button
               onClick={onClose}
