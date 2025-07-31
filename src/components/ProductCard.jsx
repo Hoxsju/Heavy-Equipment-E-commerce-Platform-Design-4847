@@ -10,51 +10,36 @@ const {FiShoppingCart, FiMessageCircle, FiShare2} = FiIcons;
 const ProductCard = ({product}) => {
   const {addToCart} = useCart();
   
-  // AGGRESSIVE image filtering - completely block mock images
+  // IMPROVED image handling logic - less aggressive filtering
   const getProductImage = () => {
+    // Hard-coded list of exact mock image URLs to filter out
     const mockImageUrls = [
       'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158',
-      'https://via.placeholder.com',
-      'placeholder',
-      'mock',
-      'default'
+      'https://via.placeholder.com/150',
+      'https://via.placeholder.com/300'
     ];
     
-    // Check if any image source contains mock image identifiers
-    const isMockImage = (url) => {
-      if (!url || typeof url !== 'string') return true;
-      return mockImageUrls.some(mockUrl => url.toLowerCase().includes(mockUrl.toLowerCase()));
+    // Only filter out exact matches to prevent false positives
+    const isExactMockImage = (url) => {
+      if (!url) return true;
+      return mockImageUrls.includes(url);
     };
-    
-    // First priority: product.image (if it's not a mock image)
-    if (product.image && !isMockImage(product.image)) {
+
+    // First priority: product.image (if it exists and is not an exact mock image)
+    if (product.image && product.image.length > 5 && !isExactMockImage(product.image)) {
       return product.image;
     }
     
     // Second priority: first valid image from images array
     if (product.images && Array.isArray(product.images) && product.images.length > 0) {
       for (const image of product.images) {
-        if (image && !isMockImage(image)) {
+        if (image && image.length > 5 && !isExactMockImage(image)) {
           return image;
         }
       }
     }
     
-    // Third priority: check for uploaded images in storage
-    if (product.image && product.image.includes('supabase')) {
-      return product.image;
-    }
-    
-    if (product.images && Array.isArray(product.images)) {
-      for (const image of product.images) {
-        if (image && typeof image === 'string' && image.includes('supabase')) {
-          return image;
-        }
-      }
-    }
-    
-    // FINAL FALLBACK: Return a completely different image or hide the image
-    // Instead of returning the mock image, return null to hide the image
+    // Last resort: return null to show placeholder
     return null;
   };
 
@@ -103,6 +88,7 @@ const ProductCard = ({product}) => {
               className="w-full h-full object-cover"
               onError={(e) => {
                 // If image fails to load, hide it completely
+                console.log(`Image load error for: ${productImage}`);
                 e.target.style.display = 'none';
                 e.target.nextSibling.style.display = 'flex';
               }}

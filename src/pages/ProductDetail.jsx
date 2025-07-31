@@ -41,51 +41,42 @@ const ProductDetail = () => {
     }
   };
 
-  // AGGRESSIVE image filtering for product detail - completely block mock images
+  // IMPROVED image handling logic - less aggressive filtering
   const getProductImage = () => {
     if (!product) return null;
     
+    // Hard-coded list of exact mock image URLs to filter out
     const mockImageUrls = [
       'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158',
-      'https://via.placeholder.com',
-      'placeholder',
-      'mock',
-      'default'
+      'https://via.placeholder.com/150',
+      'https://via.placeholder.com/300'
     ];
     
-    const isMockImage = (url) => {
-      if (!url || typeof url !== 'string') return true;
-      return mockImageUrls.some(mockUrl => url.toLowerCase().includes(mockUrl.toLowerCase()));
+    // Only filter out exact matches to prevent false positives
+    const isExactMockImage = (url) => {
+      if (!url) return true;
+      return mockImageUrls.includes(url);
     };
-    
-    // First priority: product.image (if it's not a mock image)
-    if (product.image && !isMockImage(product.image)) {
+
+    // First priority: product.image (if it exists and is not an exact mock image)
+    if (product.image && product.image.length > 5 && !isExactMockImage(product.image)) {
+      console.log('Using main image:', product.image);
       return product.image;
     }
     
     // Second priority: first valid image from images array
     if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      console.log('Checking images array, length:', product.images.length);
       for (const image of product.images) {
-        if (image && !isMockImage(image)) {
+        if (image && image.length > 5 && !isExactMockImage(image)) {
+          console.log('Using image from array:', image);
           return image;
         }
       }
     }
     
-    // Third priority: check for uploaded images in storage
-    if (product.image && product.image.includes('supabase')) {
-      return product.image;
-    }
-    
-    if (product.images && Array.isArray(product.images)) {
-      for (const image of product.images) {
-        if (image && typeof image === 'string' && image.includes('supabase')) {
-          return image;
-        }
-      }
-    }
-    
-    // Return null if no valid image found
+    // Last resort: return null to show placeholder
+    console.log('No valid images found, using placeholder');
     return null;
   };
 
@@ -147,6 +138,15 @@ const ProductDetail = () => {
   }
 
   const productImage = getProductImage();
+  
+  // Debug image information
+  console.log('Product Detail Image Info:', {
+    product_id: product.id,
+    product_name: product.name,
+    main_image: product.image,
+    images_array: product.images,
+    selected_image: productImage
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -172,6 +172,7 @@ const ProductDetail = () => {
                     alt={product.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
+                      console.log(`Image load error for: ${productImage}`);
                       e.target.style.display = 'none';
                       e.target.nextSibling.style.display = 'flex';
                     }}

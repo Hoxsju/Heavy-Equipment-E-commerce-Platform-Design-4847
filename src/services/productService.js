@@ -10,43 +10,39 @@ export const productService = {
 
     if (error) throw error;
     
-    // Filter out products that only have mock images
-    const filteredData = (data || []).map(product => {
+    // Process products and handle images - simplified approach
+    const processedData = (data || []).map(product => {
+      // Only filter out specific mock images, not any URL containing those strings
       const mockImageUrls = [
         'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158',
-        'https://via.placeholder.com',
-        'placeholder',
-        'mock',
-        'default'
+        'https://via.placeholder.com/150',
+        'https://via.placeholder.com/300'
       ];
       
-      const isMockImage = (url) => {
-        if (!url || typeof url !== 'string') return true;
-        return mockImageUrls.some(mockUrl => url.toLowerCase().includes(mockUrl.toLowerCase()));
-      };
+      // Create a processed product with all fields
+      let processedProduct = {...product};
       
-      // Clean the product images
-      let cleanedProduct = {...product};
-      
-      // If main image is mock, remove it
-      if (product.image && isMockImage(product.image)) {
-        cleanedProduct.image = '';
+      // Only filter out exact mock images
+      if (product.image && mockImageUrls.includes(product.image)) {
+        processedProduct.image = '';
       }
       
-      // Filter out mock images from images array
+      // Filter out exact mock images from the images array
       if (product.images && Array.isArray(product.images)) {
-        cleanedProduct.images = product.images.filter(img => !isMockImage(img));
+        processedProduct.images = product.images.filter(img => 
+          img && img.length > 5 && !mockImageUrls.includes(img)
+        );
       }
       
-      // If we have valid images in the array but no main image, set the first valid one as main
-      if (!cleanedProduct.image && cleanedProduct.images && cleanedProduct.images.length > 0) {
-        cleanedProduct.image = cleanedProduct.images[0];
+      // If we don't have a main image but have images in the array, use the first one
+      if (!processedProduct.image && processedProduct.images && processedProduct.images.length > 0) {
+        processedProduct.image = processedProduct.images[0];
       }
       
-      return cleanedProduct;
+      return processedProduct;
     });
     
-    return filteredData;
+    return processedData;
   },
 
   async getProductById(id) {
@@ -58,38 +54,44 @@ export const productService = {
 
     if (error) throw error;
     
-    // Clean mock images from single product
+    // Only filter out specific mock images, not any URL containing those strings
     const mockImageUrls = [
       'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158',
-      'https://via.placeholder.com',
-      'placeholder',
-      'mock',
-      'default'
+      'https://via.placeholder.com/150',
+      'https://via.placeholder.com/300'
     ];
     
-    const isMockImage = (url) => {
-      if (!url || typeof url !== 'string') return true;
-      return mockImageUrls.some(mockUrl => url.toLowerCase().includes(mockUrl.toLowerCase()));
-    };
+    // Create a processed product with all fields
+    let processedProduct = {...data};
     
-    let cleanedProduct = {...data};
-    
-    // If main image is mock, remove it
-    if (data.image && isMockImage(data.image)) {
-      cleanedProduct.image = '';
+    // Only filter out exact mock images
+    if (data.image && mockImageUrls.includes(data.image)) {
+      processedProduct.image = '';
     }
     
-    // Filter out mock images from images array
+    // Filter out exact mock images from the images array
     if (data.images && Array.isArray(data.images)) {
-      cleanedProduct.images = data.images.filter(img => !isMockImage(img));
+      processedProduct.images = data.images.filter(img => 
+        img && img.length > 5 && !mockImageUrls.includes(img)
+      );
     }
     
-    // If we have valid images in the array but no main image, set the first valid one as main
-    if (!cleanedProduct.image && cleanedProduct.images && cleanedProduct.images.length > 0) {
-      cleanedProduct.image = cleanedProduct.images[0];
+    // If we don't have a main image but have images in the array, use the first one
+    if (!processedProduct.image && processedProduct.images && processedProduct.images.length > 0) {
+      processedProduct.image = processedProduct.images[0];
     }
     
-    return cleanedProduct;
+    // Log product image data for debugging
+    console.log('Product Image Data:', {
+      id: processedProduct.id,
+      name: processedProduct.name,
+      original_image: data.image,
+      processed_image: processedProduct.image,
+      original_images: data.images,
+      processed_images: processedProduct.images
+    });
+    
+    return processedProduct;
   },
 
   async createProduct(productData) {
