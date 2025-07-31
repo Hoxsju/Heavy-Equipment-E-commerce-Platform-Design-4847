@@ -22,7 +22,6 @@ const ProductDetail = () => {
   const [showQuickOrder, setShowQuickOrder] = useState(false);
 
   useEffect(() => {
-    // Force scroll to top when component mounts
     window.scrollTo(0, 0);
     fetchProduct();
   }, [id]);
@@ -30,7 +29,6 @@ const ProductDetail = () => {
   const fetchProduct = async () => {
     try {
       const data = await productService.getProductById(id);
-      // Ensure product is shown as in stock regardless of actual value
       setProduct({
         ...data,
         stock: Math.max(10, data.stock || 0)
@@ -43,33 +41,52 @@ const ProductDetail = () => {
     }
   };
 
-  // Better image handling for product detail
+  // AGGRESSIVE image filtering for product detail - completely block mock images
   const getProductImage = () => {
-    if (!product) return '';
+    if (!product) return null;
     
-    // First priority: product.image
-    if (product.image && 
-        product.image !== '' && 
-        !product.image.includes('placeholder') &&
-        !product.image.includes('via.placeholder') &&
-        product.image !== 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&h=400&fit=crop') {
+    const mockImageUrls = [
+      'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158',
+      'https://via.placeholder.com',
+      'placeholder',
+      'mock',
+      'default'
+    ];
+    
+    const isMockImage = (url) => {
+      if (!url || typeof url !== 'string') return true;
+      return mockImageUrls.some(mockUrl => url.toLowerCase().includes(mockUrl.toLowerCase()));
+    };
+    
+    // First priority: product.image (if it's not a mock image)
+    if (product.image && !isMockImage(product.image)) {
       return product.image;
     }
     
-    // Second priority: first image from images array
+    // Second priority: first valid image from images array
     if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-      const firstImage = product.images[0];
-      if (firstImage && 
-          firstImage !== '' && 
-          !firstImage.includes('placeholder') &&
-          !firstImage.includes('via.placeholder') &&
-          firstImage !== 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&h=400&fit=crop') {
-        return firstImage;
+      for (const image of product.images) {
+        if (image && !isMockImage(image)) {
+          return image;
+        }
       }
     }
     
-    // Last resort: use a generic fallback
-    return 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&h=400&fit=crop&q=80';
+    // Third priority: check for uploaded images in storage
+    if (product.image && product.image.includes('supabase')) {
+      return product.image;
+    }
+    
+    if (product.images && Array.isArray(product.images)) {
+      for (const image of product.images) {
+        if (image && typeof image === 'string' && image.includes('supabase')) {
+          return image;
+        }
+      }
+    }
+    
+    // Return null if no valid image found
+    return null;
   };
 
   const handleAddToCart = () => {
@@ -95,7 +112,6 @@ const ProductDetail = () => {
         .then(() => console.log('Shared successfully'))
         .catch(error => console.log('Error sharing:', error));
     } else {
-      // Fallback to copying to clipboard
       navigator.clipboard.writeText(url)
         .then(() => toast.success('Product link copied to clipboard!'))
         .catch(err => console.log('Failed to copy link:', err));
@@ -130,6 +146,8 @@ const ProductDetail = () => {
     );
   }
 
+  const productImage = getProductImage();
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -145,19 +163,34 @@ const ProductDetail = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-8">
             {/* Product Image */}
             <div className="space-y-4">
-              <motion.img
-                initial={{opacity: 0, scale: 0.95}}
-                animate={{opacity: 1, scale: 1}}
-                src={getProductImage()}
-                alt={product.name}
-                className="w-full h-96 object-cover rounded-lg"
-                onError={(e) => {
-                  // Only fallback if the current src is not already the fallback
-                  if (!e.target.src.includes('photo-1581091226825-a6a2a5aee158')) {
-                    e.target.src = 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&h=400&fit=crop&q=80';
-                  }
-                }}
-              />
+              <div className="w-full h-96 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg overflow-hidden">
+                {productImage ? (
+                  <motion.img
+                    initial={{opacity: 0, scale: 0.95}}
+                    animate={{opacity: 1, scale: 1}}
+                    src={productImage}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                
+                {/* Fallback when no image available */}
+                <div 
+                  className={`${productImage ? 'hidden' : 'flex'} w-full h-full items-center justify-center`}
+                  style={{display: productImage ? 'none' : 'flex'}}
+                >
+                  <div className="text-center text-gray-500">
+                    <SafeIcon icon={FiShoppingCart} className="h-16 w-16 mx-auto mb-4" />
+                    <p className="text-lg font-medium">{product.brand}</p>
+                    <p className="text-sm">{product.category}</p>
+                    <p className="text-xs mt-2 text-gray-400">Part #{product.part_number}</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Product Info */}
