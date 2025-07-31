@@ -1,39 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
+import React, {useState, useEffect} from 'react';
+import {useParams, useNavigate} from 'react-router-dom';
+import {motion} from 'framer-motion';
+import {toast} from 'react-toastify';
 import SafeIcon from '../common/SafeIcon';
-import { useCart } from '../context/CartContext';
-import { useAuth } from '../context/AuthContext';
-import { productService } from '../services/productService';
-import ProductImageLoader from '../components/ProductImageLoader';
-import useProductImages from '../hooks/useProductImages';
+import {useCart} from '../context/CartContext';
+import {useAuth} from '../context/AuthContext';
+import {productService} from '../services/productService';
 import QuickOrderModal from '../components/QuickOrderModal';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiShoppingCart, FiMessageCircle, FiMinus, FiPlus, FiArrowLeft, FiTruck, FiShield, FiClock, FiDollarSign, FiShare2, FiImage, FiChevronLeft, FiChevronRight } = FiIcons;
+const {FiShoppingCart, FiMessageCircle, FiMinus, FiPlus, FiArrowLeft, FiTruck, FiShield, FiClock, FiDollarSign, FiShare2} = FiIcons;
 
 const ProductDetail = () => {
-  const { id } = useParams();
+  const {id} = useParams();
   const navigate = useNavigate();
-  const { addToCart } = useCart();
-  const { user } = useAuth();
+  const {addToCart} = useCart();
+  const {user} = useAuth();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [showQuickOrder, setShowQuickOrder] = useState(false);
-
-  // Use the advanced image management hook
-  const {
-    currentImage,
-    hasImages,
-    isLoading: imageLoading,
-    totalImages,
-    currentImageIndex,
-    nextImage,
-    previousImage,
-    markCurrentImageInvalid
-  } = useProductImages(product || {});
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -53,6 +39,27 @@ const ProductDetail = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // FIXED: Simplified image handling - just use what's available
+  const getProductImage = () => {
+    if (!product) return null;
+    
+    // First priority: product.image
+    if (product.image && product.image.length > 0) {
+      console.log('Using main image:', product.image);
+      return product.image;
+    }
+    
+    // Second priority: first image from images array
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      console.log('Using image from array:', product.images[0]);
+      return product.images[0];
+    }
+    
+    // No image available
+    console.log('No valid images found, using placeholder');
+    return null;
   };
 
   const handleAddToCart = () => {
@@ -88,11 +95,6 @@ const ProductDetail = () => {
     setShowQuickOrder(true);
   };
 
-  const handleImageError = () => {
-    console.log(`ProductDetail: Image error for product ${product.id}`);
-    markCurrentImageInvalid();
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -117,6 +119,17 @@ const ProductDetail = () => {
     );
   }
 
+  const productImage = getProductImage();
+  
+  // Debug image information
+  console.log('Product Detail Image Info:', {
+    product_id: product.id,
+    product_name: product.name,
+    main_image: product.image,
+    images_array: product.images,
+    selected_image: productImage
+  });
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -130,73 +143,37 @@ const ProductDetail = () => {
 
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-8">
-            {/* Product Image Gallery */}
+            {/* Product Image */}
             <div className="space-y-4">
-              <div className="relative w-full h-96 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg overflow-hidden">
-                {/* APPROACH 1: Use ProductImageLoader component */}
-                <ProductImageLoader 
-                  product={product}
-                  className="w-full h-full object-cover"
-                />
-
-                {/* APPROACH 2: Manual image management with navigation */}
-                {hasImages && totalImages > 1 && (
-                  <>
-                    {/* Previous image button */}
-                    <button
-                      onClick={previousImage}
-                      className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-opacity"
-                    >
-                      <SafeIcon icon={FiChevronLeft} className="h-4 w-4" />
-                    </button>
-
-                    {/* Next image button */}
-                    <button
-                      onClick={nextImage}
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-opacity"
-                    >
-                      <SafeIcon icon={FiChevronRight} className="h-4 w-4" />
-                    </button>
-
-                    {/* Image counter */}
-                    <div className="absolute bottom-2 left-2 bg-black bg-opacity-60 text-white text-sm px-3 py-1 rounded">
-                      {currentImageIndex + 1} / {totalImages}
-                    </div>
-                  </>
-                )}
-
-                {/* Loading indicator */}
-                {imageLoading && (
-                  <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
-                      <p className="text-sm text-gray-600">Loading images...</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* No images placeholder */}
-                {!hasImages && !imageLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center text-gray-500">
-                      <SafeIcon icon={FiImage} className="h-16 w-16 mx-auto mb-4" />
-                      <p className="text-lg font-medium">{product.brand}</p>
-                      <p className="text-sm">{product.category}</p>
-                      <p className="text-xs mt-2 text-gray-400">Part #{product.part_number}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Image thumbnails (if multiple images) */}
-              {hasImages && totalImages > 1 && (
-                <div className="flex space-x-2 overflow-x-auto">
-                  {/* This would require extending the hook to provide all images */}
-                  <div className="text-xs text-gray-500 p-2">
-                    Multiple images available - use arrow buttons to navigate
+              <div className="w-full h-96 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg overflow-hidden">
+                {productImage ? (
+                  <motion.img
+                    initial={{opacity: 0, scale: 0.95}}
+                    animate={{opacity: 1, scale: 1}}
+                    src={productImage}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      console.log(`Image load error for: ${productImage}`);
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                
+                {/* Fallback when no image available */}
+                <div 
+                  className={`${productImage ? 'hidden' : 'flex'} w-full h-full items-center justify-center`}
+                  style={{display: productImage ? 'none' : 'flex'}}
+                >
+                  <div className="text-center text-gray-500">
+                    <SafeIcon icon={FiShoppingCart} className="h-16 w-16 mx-auto mb-4" />
+                    <p className="text-lg font-medium">{product.brand}</p>
+                    <p className="text-sm">{product.category}</p>
+                    <p className="text-xs mt-2 text-gray-400">Part #{product.part_number}</p>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Product Info */}
@@ -232,20 +209,6 @@ const ProductDetail = () => {
                     <p className="font-medium text-green-600">In stock</p>
                   </div>
                 </div>
-
-                {/* Image debug info (development only) */}
-                {process.env.NODE_ENV === 'development' && (
-                  <div className="bg-gray-100 p-3 rounded text-xs space-y-1">
-                    <p><strong>Image Debug:</strong></p>
-                    <p>Has Images: {hasImages ? 'Yes' : 'No'}</p>
-                    <p>Total Images: {totalImages}</p>
-                    <p>Current Index: {currentImageIndex}</p>
-                    <p>Loading: {imageLoading ? 'Yes' : 'No'}</p>
-                    {currentImage && (
-                      <p>Current Source: {currentImage.source}</p>
-                    )}
-                  </div>
-                )}
               </div>
 
               <div className="border-t pt-6">

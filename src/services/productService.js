@@ -10,29 +10,10 @@ export const productService = {
 
     if (error) throw error;
     
-    // Process products and handle images - simplified approach
+    // FIXED: Completely remove image filtering - let all images through
     const processedData = (data || []).map(product => {
-      // Only filter out specific mock images, not any URL containing those strings
-      const mockImageUrls = [
-        'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158',
-        'https://via.placeholder.com/150',
-        'https://via.placeholder.com/300'
-      ];
-      
       // Create a processed product with all fields
       let processedProduct = {...product};
-      
-      // Only filter out exact mock images
-      if (product.image && mockImageUrls.includes(product.image)) {
-        processedProduct.image = '';
-      }
-      
-      // Filter out exact mock images from the images array
-      if (product.images && Array.isArray(product.images)) {
-        processedProduct.images = product.images.filter(img => 
-          img && img.length > 5 && !mockImageUrls.includes(img)
-        );
-      }
       
       // If we don't have a main image but have images in the array, use the first one
       if (!processedProduct.image && processedProduct.images && processedProduct.images.length > 0) {
@@ -54,27 +35,8 @@ export const productService = {
 
     if (error) throw error;
     
-    // Only filter out specific mock images, not any URL containing those strings
-    const mockImageUrls = [
-      'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158',
-      'https://via.placeholder.com/150',
-      'https://via.placeholder.com/300'
-    ];
-    
-    // Create a processed product with all fields
+    // FIXED: Completely remove image filtering - let all images through
     let processedProduct = {...data};
-    
-    // Only filter out exact mock images
-    if (data.image && mockImageUrls.includes(data.image)) {
-      processedProduct.image = '';
-    }
-    
-    // Filter out exact mock images from the images array
-    if (data.images && Array.isArray(data.images)) {
-      processedProduct.images = data.images.filter(img => 
-        img && img.length > 5 && !mockImageUrls.includes(img)
-      );
-    }
     
     // If we don't have a main image but have images in the array, use the first one
     if (!processedProduct.image && processedProduct.images && processedProduct.images.length > 0) {
@@ -85,10 +47,8 @@ export const productService = {
     console.log('Product Image Data:', {
       id: processedProduct.id,
       name: processedProduct.name,
-      original_image: data.image,
-      processed_image: processedProduct.image,
-      original_images: data.images,
-      processed_images: processedProduct.images
+      main_image: processedProduct.image,
+      images_array: processedProduct.images
     });
     
     return processedProduct;
