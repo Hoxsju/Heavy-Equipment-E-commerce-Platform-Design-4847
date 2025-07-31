@@ -17,7 +17,7 @@ export const storageService = {
         return fileOrBase64;
       }
       
-      // If it's a base64 data URL, convert to file if possible
+      // If it's a base64 data URL, convert to file
       if (typeof fileOrBase64 === 'string' && fileOrBase64.startsWith('data:')) {
         console.log('Image is base64 data URL, converting to File');
         try {
@@ -26,7 +26,8 @@ export const storageService = {
           // Continue with file upload
           fileOrBase64 = file;
         } catch (conversionError) {
-          console.log('Failed to convert base64 to file, returning as-is');
+          console.error('Failed to convert base64 to file:', conversionError);
+          // Return base64 as fallback
           return fileOrBase64;
         }
       }
@@ -61,11 +62,11 @@ export const storageService = {
       console.log(`Uploading file to Supabase storage: ${filePath}`);
       
       // Upload to Supabase Storage
-      const { data, error } = await supabase.storage
+      const {data, error} = await supabase.storage
         .from('product_images')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false // Changed to false to avoid conflicts
+          upsert: false
         });
       
       if (error) {
@@ -75,15 +76,15 @@ export const storageService = {
       }
       
       // Get the public URL for the uploaded file
-      const { data: { publicUrl } } = supabase.storage
+      const {data: {publicUrl}} = supabase.storage
         .from('product_images')
         .getPublicUrl(filePath);
       
       console.log('Upload successful, public URL:', publicUrl);
       return publicUrl;
-      
     } catch (error) {
       console.error('Error uploading image:', error);
+      
       // If it's a File object and upload failed, try to convert to base64
       if (fileOrBase64 instanceof File) {
         try {
@@ -93,6 +94,7 @@ export const storageService = {
           console.error('Base64 conversion also failed:', base64Error);
         }
       }
+      
       // Return original input as fallback
       return fileOrBase64;
     }
@@ -130,7 +132,7 @@ export const storageService = {
         }
         
         // Create a File object
-        const file = new File([u8arr], filename, { type: mime });
+        const file = new File([u8arr], filename, {type: mime});
         resolve(file);
       } catch (error) {
         reject(error);
@@ -165,7 +167,7 @@ export const storageService = {
       const filePath = pathParts.slice(bucketIndex + 1).join('/');
       console.log('Attempting to delete file:', filePath);
       
-      const { error } = await supabase.storage
+      const {error} = await supabase.storage
         .from('product_images')
         .remove([filePath]);
       
@@ -192,11 +194,11 @@ export const storageService = {
       console.log(`Checking if bucket ${bucketName} exists...`);
       
       // Check if bucket exists
-      const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+      const {data: buckets, error: listError} = await supabase.storage.listBuckets();
       
       if (listError) {
         console.error('Error listing buckets:', listError);
-        return { success: false, error: listError };
+        return {success: false, error: listError};
       }
       
       const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
@@ -205,7 +207,7 @@ export const storageService = {
         console.log(`Creating bucket: ${bucketName}`);
         
         // Create the bucket
-        const { data, error } = await supabase.storage.createBucket(bucketName, {
+        const {data, error} = await supabase.storage.createBucket(bucketName, {
           public: true,
           fileSizeLimit: 5242880, // 5MB in bytes
           allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
@@ -213,19 +215,18 @@ export const storageService = {
         
         if (error) {
           console.error('Error creating bucket:', error);
-          return { success: false, error };
+          return {success: false, error};
         }
         
         console.log(`Bucket ${bucketName} created successfully`);
-        return { success: true, data };
+        return {success: true, data};
       }
       
       console.log(`Bucket ${bucketName} already exists`);
-      return { success: true, message: 'Bucket already exists' };
-      
+      return {success: true, message: 'Bucket already exists'};
     } catch (error) {
       console.error('Error checking/creating bucket:', error);
-      return { success: false, error };
+      return {success: false, error};
     }
   }
 };

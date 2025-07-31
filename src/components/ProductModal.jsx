@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
+import React, {useState, useEffect} from 'react';
+import {motion} from 'framer-motion';
+import {toast} from 'react-toastify';
 import SafeIcon from '../common/SafeIcon';
 import ImageUploader from './ImageUploader';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiX, FiSave, FiPlus, FiTrash2, FiLoader } = FiIcons;
+const {FiX, FiSave, FiPlus, FiTrash2, FiLoader} = FiIcons;
 
-const ProductModal = ({ product, onSave, onClose }) => {
+const ProductModal = ({product, onSave, onClose}) => {
   const [formData, setFormData] = useState({
     name: '',
     partNumber: '',
@@ -21,7 +21,7 @@ const ProductModal = ({ product, onSave, onClose }) => {
     status: 'draft',
     slug: ''
   });
-
+  
   const [newBrand, setNewBrand] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [saving, setSaving] = useState(false);
@@ -30,8 +30,10 @@ const ProductModal = ({ product, onSave, onClose }) => {
   useEffect(() => {
     if (product) {
       // Convert single brand/category to arrays if needed
-      const brands = Array.isArray(product.brands) ? product.brands : product.brand ? [product.brand] : [];
-      const categories = Array.isArray(product.categories) ? product.categories : product.category ? [product.category] : [];
+      const brands = Array.isArray(product.brands) ? product.brands : 
+                    product.brand ? [product.brand] : [];
+      const categories = Array.isArray(product.categories) ? product.categories : 
+                        product.category ? [product.category] : [];
       
       // Convert single image to array if needed
       const images = Array.isArray(product.images) ? product.images : [];
@@ -104,73 +106,49 @@ const ProductModal = ({ product, onSave, onClose }) => {
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-
+    const {name, value} = e.target;
+    setFormData(prev => ({...prev, [name]: value}));
+    
     // Clear error when user starts typing
     if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+      setErrors(prev => ({...prev, [name]: ''}));
     }
-
+    
     // Auto-generate slug from name if slug field is empty
     if (name === 'name' && !formData.slug) {
       const slug = value
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
-      setFormData(prev => ({
-        ...prev,
-        slug
-      }));
+      setFormData(prev => ({...prev, slug}));
     }
   };
 
   const handleAddBrand = () => {
     if (newBrand.trim() && !formData.brands.includes(newBrand.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        brands: [...prev.brands, newBrand.trim()]
-      }));
+      setFormData(prev => ({...prev, brands: [...prev.brands, newBrand.trim()]}));
       setNewBrand('');
     }
   };
 
   const handleRemoveBrand = (brand) => {
-    setFormData(prev => ({
-      ...prev,
-      brands: prev.brands.filter(b => b !== brand)
-    }));
+    setFormData(prev => ({...prev, brands: prev.brands.filter(b => b !== brand)}));
   };
 
   const handleAddCategory = () => {
     if (newCategory.trim() && !formData.categories.includes(newCategory.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        categories: [...prev.categories, newCategory.trim()]
-      }));
+      setFormData(prev => ({...prev, categories: [...prev.categories, newCategory.trim()]}));
       setNewCategory('');
     }
   };
 
   const handleRemoveCategory = (category) => {
-    setFormData(prev => ({
-      ...prev,
-      categories: prev.categories.filter(c => c !== category)
-    }));
+    setFormData(prev => ({...prev, categories: prev.categories.filter(c => c !== category)}));
   };
 
   const handleImagesUpdate = (newImages) => {
     console.log('Images updated in modal:', newImages);
-    setFormData(prev => ({
-      ...prev,
-      images: newImages
-    }));
+    setFormData(prev => ({...prev, images: newImages}));
   };
 
   const handleSubmit = async (e) => {
@@ -181,7 +159,7 @@ const ProductModal = ({ product, onSave, onClose }) => {
       toast.error('Please fix the errors in the form');
       return;
     }
-
+    
     setSaving(true);
     
     try {
@@ -210,7 +188,6 @@ const ProductModal = ({ product, onSave, onClose }) => {
       console.log('Save result:', result);
       
       toast.success(`Product ${product ? 'updated' : 'created'} successfully!`);
-      
     } catch (error) {
       console.error('Error saving product:', error);
       
@@ -240,8 +217,8 @@ const ProductModal = ({ product, onSave, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{opacity: 0, scale: 0.95}}
+        animate={{opacity: 1, scale: 1}}
         className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
       >
         <div className="flex justify-between items-center mb-6">
@@ -269,7 +246,9 @@ const ProductModal = ({ product, onSave, onClose }) => {
                 value={formData.name}
                 onChange={handleInputChange}
                 required
-                className={`w-full px-3 py-2 border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
+                className={`w-full px-3 py-2 border ${
+                  errors.name ? 'border-red-500' : 'border-gray-300'
+                } rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
                 placeholder="Enter product name"
               />
               {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
@@ -285,7 +264,9 @@ const ProductModal = ({ product, onSave, onClose }) => {
                 value={formData.partNumber}
                 onChange={handleInputChange}
                 required
-                className={`w-full px-3 py-2 border ${errors.partNumber ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
+                className={`w-full px-3 py-2 border ${
+                  errors.partNumber ? 'border-red-500' : 'border-gray-300'
+                } rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
                 placeholder="Enter part number"
               />
               {errors.partNumber && <p className="mt-1 text-sm text-red-600">{errors.partNumber}</p>}
@@ -423,7 +404,9 @@ const ProductModal = ({ product, onSave, onClose }) => {
                 onChange={handleInputChange}
                 min="0"
                 step="0.01"
-                className={`w-full px-3 py-2 border ${errors.price ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
+                className={`w-full px-3 py-2 border ${
+                  errors.price ? 'border-red-500' : 'border-gray-300'
+                } rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
                 placeholder="0.00"
               />
               {errors.price && <p className="mt-1 text-sm text-red-600">{errors.price}</p>}
@@ -440,7 +423,9 @@ const ProductModal = ({ product, onSave, onClose }) => {
                 onChange={handleInputChange}
                 min="0"
                 step="0.01"
-                className={`w-full px-3 py-2 border ${errors.salePrice ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
+                className={`w-full px-3 py-2 border ${
+                  errors.salePrice ? 'border-red-500' : 'border-gray-300'
+                } rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
                 placeholder="0.00"
               />
               {errors.salePrice && <p className="mt-1 text-sm text-red-600">{errors.salePrice}</p>}
@@ -456,7 +441,9 @@ const ProductModal = ({ product, onSave, onClose }) => {
                 value={formData.stock}
                 onChange={handleInputChange}
                 min="0"
-                className={`w-full px-3 py-2 border ${errors.stock ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
+                className={`w-full px-3 py-2 border ${
+                  errors.stock ? 'border-red-500' : 'border-gray-300'
+                } rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
                 placeholder="0"
               />
               {errors.stock && <p className="mt-1 text-sm text-red-600">{errors.stock}</p>}

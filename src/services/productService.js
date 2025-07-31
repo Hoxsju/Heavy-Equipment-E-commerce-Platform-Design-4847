@@ -60,7 +60,7 @@ export const productService = {
         images = processedImages;
         mainImage = images[0] || '';
       }
-
+      
       // Prepare the product data for insertion
       const insertData = {
         name: productData.name,
@@ -76,23 +76,22 @@ export const productService = {
         status: productData.status || 'published',
         slug: productData.slug || productData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
       };
-
+      
       console.log('Inserting product data:', insertData);
-
+      
       const {data, error} = await supabase
         .from('woo_import_products')
         .insert([insertData])
         .select()
         .single();
-
+      
       if (error) {
         console.error('Database insert error:', error);
         throw new Error(`Failed to save product: ${error.message}`);
       }
-
+      
       console.log('Product created successfully:', data);
       return data;
-
     } catch (error) {
       console.error('Error creating product:', error);
       throw new Error(`Error creating product: ${error.message}`);
@@ -109,41 +108,48 @@ export const productService = {
         .select('*')
         .eq('id', id)
         .single();
-
+      
       if (fetchError) {
         console.error('Error fetching existing product:', fetchError);
         throw new Error(`Failed to fetch existing product: ${fetchError.message}`);
       }
-
+      
       console.log('Existing product data:', existingProduct);
-
+      
       // Process images if they were updated
       let mainImage = existingProduct.image;
       let images = existingProduct.images || [];
       
-      // Check if images were provided in the update
-      if (productData.images !== undefined) {
+      // CRITICAL FIX: Only process images if they were explicitly provided
+      if (productData.hasOwnProperty('images') && Array.isArray(productData.images)) {
         console.log('Processing image updates...');
         
-        if (Array.isArray(productData.images) && productData.images.length > 0) {
+        if (productData.images.length > 0) {
           console.log('Processing new images for product update...');
           const processedImages = [];
           
           for (const image of productData.images) {
             try {
-              // Only process if it's not already a URL
-              if (typeof image === 'string' && (image.startsWith('http') || image.startsWith('data:'))) {
-                // If it's a data URL, upload it
+              // Check if it's a new image that needs processing
+              if (typeof image === 'string') {
                 if (image.startsWith('data:')) {
+                  // It's a base64 data URL, needs to be uploaded
+                  console.log('Uploading base64 data URL image...');
                   const processedImage = await storageService.uploadProductImage(image);
                   processedImages.push(processedImage);
                   console.log('Processed data URL image:', processedImage);
-                } else {
+                } else if (image.startsWith('http') || image.startsWith('https')) {
                   // It's already a valid URL, keep as is
                   processedImages.push(image);
                   console.log('Kept existing URL image:', image);
+                } else {
+                  // It's some other string, keep as is
+                  processedImages.push(image);
+                  console.log('Kept string image:', image);
                 }
               } else if (image instanceof File) {
+                // It's a file object, needs to be uploaded
+                console.log('Uploading file object...');
                 const processedImage = await storageService.uploadProductImage(image);
                 processedImages.push(processedImage);
                 console.log('Processed file:', processedImage);
@@ -160,8 +166,7 @@ export const productService = {
           }
           
           images = processedImages;
-          // Set main image to the first image
-          mainImage = images.length > 0 ? images[0] : existingProduct.image;
+          mainImage = images.length > 0 ? images[0] : '';
           console.log('Updated images:', images);
           console.log('Updated main image:', mainImage);
         } else {
@@ -171,7 +176,7 @@ export const productService = {
           console.log('Removing all images from product');
         }
       }
-
+      
       // Prepare update data with correct field mappings
       const updateData = {
         name: productData.name !== undefined ? productData.name : existingProduct.name,
@@ -185,130 +190,45 @@ export const productService = {
         image: mainImage,
         images: images,
         status: productData.status !== undefined ? productData.status : existingProduct.status,
-        slug: productData.slug || existingProduct.slug || productData.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || existingProduct.slug,
+        slug: productData.slug || existingProduct.slug || (productData.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')) || existingProduct.slug,
         updated_at: new Date().toISOString()
       };
-
+      
       // Remove any undefined values to prevent database errors
       Object.keys(updateData).forEach(key => {
         if (updateData[key] === undefined) {
           delete updateData[key];
         }
       });
-
+      
       console.log('Final update data being sent to database:', updateData);
-
-      // Use a more robust update approach with better error handling
-      try {
-        const {data, error} = await supabase
-          .from('woo_import_products')
-          .update(updateData)
-          .eq('id', id)
-          .select();
-
-        if (error) {
-          console.error('Supabase update error:', error);
-          
-          // Try alternative approach if the first one fails
-          if (error.code === 'PGRST301' || error.message.includes('policy')) {
-            console.log('Trying alternative update approach...');
-            
-            // Try with simplified data first
-            const simplifiedData = {
-              name: updateData.name,
-              part_number: updateData.part_number,
-              brand: updateData.brand,
-              category: updateData.category,
-              description: updateData.description,
-              status: updateData.status,
-              updated_at: updateData.updated_at
-            };
-            
-            const {data: simpleData, error: simpleError} = await supabase
-              .from('woo_import_products')
-              .update(simplifiedData)
-              .eq('id', id)
-              .select();
-            
-            if (simpleError) {
-              throw new Error(`Update failed: ${simpleError.message}`);
-            }
-            
-            // Now try to update images separately
-            if (productData.images !== undefined) {
-              const {data: imageData, error: imageError} = await supabase
-                .from('woo_import_products')
-                .update({
-                  image: mainImage,
-                  images: images,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', id)
-                .select();
-              
-              if (imageError) {
-                console.error('Image update failed, but basic data was updated:', imageError);
-                // Don't throw here, basic update succeeded
-              }
-            }
-            
-            console.log('Alternative update approach succeeded');
-            return {
-              ...simpleData[0],
-              image: mainImage,
-              images: images,
-              partNumber: simpleData[0].part_number,
-              salePrice: simpleData[0].sale_price
-            };
-          }
-          
-          throw error;
-        }
-
-        if (!data || data.length === 0) {
-          console.error('No data returned from update operation');
-          throw new Error('No data returned from update operation');
-        }
-
-        console.log('Product updated successfully:', data[0]);
-        return {
-          ...data[0],
-          partNumber: data[0].part_number,
-          salePrice: data[0].sale_price
-        };
-
-      } catch (updateError) {
-        console.error('Primary update failed:', updateError);
-        
-        // Final fallback: try to update just the essential fields
-        console.log('Attempting final fallback update...');
-        
-        const fallbackData = {
-          name: productData.name || existingProduct.name,
-          updated_at: new Date().toISOString()
-        };
-        
-        const {data: fallbackResult, error: fallbackError} = await supabase
-          .from('woo_import_products')
-          .update(fallbackData)
-          .eq('id', id)
-          .select();
-        
-        if (fallbackError) {
-          throw new Error(`All update attempts failed. Last error: ${fallbackError.message}`);
-        }
-        
-        console.log('Fallback update succeeded, but some changes may not have been saved');
-        return {
-          ...fallbackResult[0],
-          partNumber: fallbackResult[0].part_number,
-          salePrice: fallbackResult[0].sale_price
-        };
+      
+      // Perform the update
+      const {data, error} = await supabase
+        .from('woo_import_products')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Supabase update error:', error);
+        throw new Error(`Update failed: ${error.message}`);
       }
-
+      
+      if (!data) {
+        console.error('No data returned from update operation');
+        throw new Error('No data returned from update operation');
+      }
+      
+      console.log('Product updated successfully:', data);
+      return {
+        ...data,
+        partNumber: data.part_number,
+        salePrice: data.sale_price
+      };
     } catch (error) {
       console.error('Error updating product:', error);
-      
       // Provide more specific error messages
       if (error.message?.includes('permission') || error.message?.includes('policy')) {
         throw new Error(`Permission denied: You don't have permission to edit products. Please contact your administrator.`);
@@ -330,7 +250,7 @@ export const productService = {
         .select('images')
         .eq('id', id)
         .single();
-
+      
       // Try to delete product images from storage
       if (product?.images && Array.isArray(product.images)) {
         for (const imageUrl of product.images) {
@@ -342,16 +262,16 @@ export const productService = {
           }
         }
       }
-
+      
       // Delete the product record
       const {error} = await supabase
         .from('woo_import_products')
         .delete()
         .eq('id', id);
-
+      
       if (error) throw error;
+      
       return {success: true};
-
     } catch (error) {
       console.error('Error deleting product:', error);
       throw error;
@@ -361,21 +281,21 @@ export const productService = {
   async bulkUpdateProducts(productIds, updates) {
     try {
       console.log('Bulk updating products:', productIds, updates);
+      
       const updateData = {...updates};
       
       const {error} = await supabase
         .from('woo_import_products')
         .update(updateData)
         .in('id', productIds);
-
+      
       if (error) {
         console.error('Bulk update error:', error);
         throw error;
       }
-
+      
       console.log('Bulk update successful');
       return {success: true};
-
     } catch (error) {
       console.error('Error bulk updating products:', error);
       throw error;
@@ -389,7 +309,7 @@ export const productService = {
         .from('woo_import_products')
         .select('id, images')
         .in('id', productIds);
-
+      
       // Try to delete product images from storage
       if (products && products.length > 0) {
         for (const product of products) {
@@ -405,16 +325,16 @@ export const productService = {
           }
         }
       }
-
+      
       // Delete the product records
       const {error} = await supabase
         .from('woo_import_products')
         .delete()
         .in('id', productIds);
-
+      
       if (error) throw error;
+      
       return {success: true};
-
     } catch (error) {
       console.error('Error bulk deleting products:', error);
       throw error;
@@ -428,7 +348,7 @@ export const productService = {
       .eq('status', 'published')
       .order('created_at', {ascending: false})
       .limit(8);
-
+    
     if (error) throw error;
     return data || [];
   },
@@ -439,7 +359,7 @@ export const productService = {
       .select('*')
       .or(`name.ilike.%${searchTerm}%,part_number.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%`)
       .order('created_at', {ascending: false});
-
+    
     if (error) throw error;
     return data || [];
   },
@@ -449,9 +369,9 @@ export const productService = {
       .from('woo_import_products')
       .select('brand')
       .not('brand', 'is', null);
-
+    
     if (error) throw error;
-
+    
     // Get unique brands
     const brands = [...new Set(data.map(item => item.brand))].filter(Boolean);
     return brands;
@@ -462,9 +382,9 @@ export const productService = {
       .from('woo_import_products')
       .select('category')
       .not('category', 'is', null);
-
+    
     if (error) throw error;
-
+    
     // Get unique categories
     const categories = [...new Set(data.map(item => item.category))].filter(Boolean);
     return categories;
@@ -479,23 +399,22 @@ export const productService = {
       const {count} = await supabase
         .from('woo_import_products')
         .select('*', {count: 'exact', head: true});
-
+      
       if (count === 0) {
         console.log('No products to clear');
         return {success: true, deletedCount: 0};
       }
-
+      
       // Delete all products
       const {error} = await supabase
         .from('woo_import_products')
         .delete()
         .neq('id', '00000000-0000-0000-0000-000000000000'); // This will match all real UUIDs
-
+      
       if (error) throw error;
-
+      
       console.log(`Successfully cleared ${count} products`);
       return {success: true, deletedCount: count};
-
     } catch (error) {
       console.error('Error clearing products:', error);
       throw error;
