@@ -1,15 +1,43 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { useCart } from '../context/CartContext';
+import {Link} from 'react-router-dom';
+import {motion} from 'framer-motion';
+import {useCart} from '../context/CartContext';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiShoppingCart, FiMessageCircle, FiShare2 } = FiIcons;
+const {FiShoppingCart, FiMessageCircle, FiShare2} = FiIcons;
 
-const ProductCard = ({ product }) => {
-  const { addToCart } = useCart();
-  const fallbackImage = 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop';
+const ProductCard = ({product}) => {
+  const {addToCart} = useCart();
+  
+  // Better image handling - prioritize real product images
+  const getProductImage = () => {
+    // First priority: product.image
+    if (product.image && 
+        product.image !== '' && 
+        !product.image.includes('placeholder') &&
+        !product.image.includes('via.placeholder') &&
+        product.image !== 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop') {
+      return product.image;
+    }
+    
+    // Second priority: first image from images array
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      const firstImage = product.images[0];
+      if (firstImage && 
+          firstImage !== '' && 
+          !firstImage.includes('placeholder') &&
+          !firstImage.includes('via.placeholder') &&
+          firstImage !== 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop') {
+        return firstImage;
+      }
+    }
+    
+    // Last resort: use a generic fallback (not the mock image)
+    return 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop&q=80';
+  };
+
+  const productImage = getProductImage();
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -27,7 +55,7 @@ const ProductCard = ({ product }) => {
     e.preventDefault();
     const url = `${window.location.origin}/#/product/${product.id}`;
     const title = `Check out ${product.name}`;
-
+    
     if (navigator.share) {
       navigator.share({
         title: title,
@@ -43,18 +71,20 @@ const ProductCard = ({ product }) => {
 
   return (
     <motion.div
-      whileHover={{ y: -2 }}
+      whileHover={{y: -2}}
       className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full flex flex-col"
     >
       <Link to={`/product/${product.id}`} className="block flex-shrink-0">
         <div className="relative w-full h-32 sm:h-40 md:h-48 overflow-hidden">
           <img
-            src={product.image || fallbackImage}
+            src={productImage}
             alt={product.name}
             className="w-full h-full object-cover"
             onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = fallbackImage;
+              // Only fallback if the current src is not already the fallback
+              if (!e.target.src.includes('photo-1581091226825-a6a2a5aee158')) {
+                e.target.src = 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop&q=80';
+              }
             }}
             loading="lazy"
           />
@@ -96,6 +126,7 @@ const ProductCard = ({ product }) => {
             <span className="hidden sm:inline">Add to Cart</span>
             <span className="sm:hidden">Add</span>
           </button>
+          
           <button
             onClick={handleWhatsApp}
             className="bg-green-600 text-white py-2 px-2 md:px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"

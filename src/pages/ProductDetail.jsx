@@ -1,5 +1,5 @@
-import React,{useState,useEffect} from 'react';
-import {useParams,useNavigate} from 'react-router-dom';
+import React, {useState, useEffect} from 'react';
+import {useParams, useNavigate} from 'react-router-dom';
 import {motion} from 'framer-motion';
 import {toast} from 'react-toastify';
 import SafeIcon from '../common/SafeIcon';
@@ -8,29 +8,33 @@ import {useAuth} from '../context/AuthContext';
 import {productService} from '../services/productService';
 import QuickOrderModal from '../components/QuickOrderModal';
 import * as FiIcons from 'react-icons/fi';
-const {FiShoppingCart,FiMessageCircle,FiMinus,FiPlus,FiArrowLeft,FiTruck,FiShield,FiClock,FiDollarSign,FiShare2}=FiIcons;
 
-const ProductDetail=()=> {
-  const {id}=useParams();
-  const navigate=useNavigate();
-  const {addToCart}=useCart();
-  const {user}=useAuth();
-  const [product,setProduct]=useState(null);
-  const [loading,setLoading]=useState(true);
-  const [quantity,setQuantity]=useState(1);
-  const [showQuickOrder,setShowQuickOrder]=useState(false);
+const {FiShoppingCart, FiMessageCircle, FiMinus, FiPlus, FiArrowLeft, FiTruck, FiShield, FiClock, FiDollarSign, FiShare2} = FiIcons;
 
-  useEffect(()=> {
+const ProductDetail = () => {
+  const {id} = useParams();
+  const navigate = useNavigate();
+  const {addToCart} = useCart();
+  const {user} = useAuth();
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [quantity, setQuantity] = useState(1);
+  const [showQuickOrder, setShowQuickOrder] = useState(false);
+
+  useEffect(() => {
     // Force scroll to top when component mounts
-    window.scrollTo(0,0);
+    window.scrollTo(0, 0);
     fetchProduct();
-  },[id]);
+  }, [id]);
 
-  const fetchProduct=async ()=> {
+  const fetchProduct = async () => {
     try {
-      const data=await productService.getProductById(id);
+      const data = await productService.getProductById(id);
       // Ensure product is shown as in stock regardless of actual value
-      setProduct({...data,stock: Math.max(10,data.stock || 0)});
+      setProduct({
+        ...data,
+        stock: Math.max(10, data.stock || 0)
+      });
     } catch (error) {
       toast.error('Product not found');
       navigate('/');
@@ -39,15 +43,44 @@ const ProductDetail=()=> {
     }
   };
 
-  const handleAddToCart=()=> {
-    addToCart(product,quantity);
+  // Better image handling for product detail
+  const getProductImage = () => {
+    if (!product) return '';
+    
+    // First priority: product.image
+    if (product.image && 
+        product.image !== '' && 
+        !product.image.includes('placeholder') &&
+        !product.image.includes('via.placeholder') &&
+        product.image !== 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&h=400&fit=crop') {
+      return product.image;
+    }
+    
+    // Second priority: first image from images array
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      const firstImage = product.images[0];
+      if (firstImage && 
+          firstImage !== '' && 
+          !firstImage.includes('placeholder') &&
+          !firstImage.includes('via.placeholder') &&
+          firstImage !== 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&h=400&fit=crop') {
+        return firstImage;
+      }
+    }
+    
+    // Last resort: use a generic fallback
+    return 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&h=400&fit=crop&q=80';
+  };
+
+  const handleAddToCart = () => {
+    addToCart(product, quantity);
     toast.success('Added to cart!');
   };
 
-  const handleWhatsApp=()=> {
-    const message=`Hi,I'm interested in ${product.name} - ${product.part_number || product.partNumber}. Link: ${window.location.href}`;
-    const whatsappUrl=`https://wa.me/966502255702?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl,'_blank');
+  const handleWhatsApp = () => {
+    const message = `Hi, I'm interested in ${product.name} - ${product.part_number || product.partNumber}. Link: ${window.location.href}`;
+    const whatsappUrl = `https://wa.me/966502255702?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   const handleShare = () => {
@@ -59,8 +92,8 @@ const ProductDetail=()=> {
         title: title,
         url: url
       })
-      .then(() => console.log('Shared successfully'))
-      .catch(error => console.log('Error sharing:', error));
+        .then(() => console.log('Shared successfully'))
+        .catch(error => console.log('Error sharing:', error));
     } else {
       // Fallback to copying to clipboard
       navigator.clipboard.writeText(url)
@@ -69,7 +102,7 @@ const ProductDetail=()=> {
     }
   };
 
-  const handleBuyNow=()=> {
+  const handleBuyNow = () => {
     setShowQuickOrder(true);
   };
 
@@ -87,7 +120,7 @@ const ProductDetail=()=> {
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h2>
           <button
-            onClick={()=> navigate('/')}
+            onClick={() => navigate('/')}
             className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700"
           >
             Go Back Home
@@ -101,7 +134,7 @@ const ProductDetail=()=> {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <button
-          onClick={()=> navigate(-1)}
+          onClick={() => navigate(-1)}
           className="flex items-center text-gray-600 hover:text-gray-900 mb-6"
         >
           <SafeIcon icon={FiArrowLeft} className="h-4 w-4 mr-2" />
@@ -113,11 +146,17 @@ const ProductDetail=()=> {
             {/* Product Image */}
             <div className="space-y-4">
               <motion.img
-                initial={{opacity: 0,scale: 0.95}}
-                animate={{opacity: 1,scale: 1}}
-                src={product.image || 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&h=400&fit=crop'}
+                initial={{opacity: 0, scale: 0.95}}
+                animate={{opacity: 1, scale: 1}}
+                src={getProductImage()}
                 alt={product.name}
                 className="w-full h-96 object-cover rounded-lg"
+                onError={(e) => {
+                  // Only fallback if the current src is not already the fallback
+                  if (!e.target.src.includes('photo-1581091226825-a6a2a5aee158')) {
+                    e.target.src = 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&h=400&fit=crop&q=80';
+                  }
+                }}
               />
             </div>
 
@@ -126,8 +165,8 @@ const ProductDetail=()=> {
               <div>
                 <div className="flex justify-between items-start">
                   <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.name}</h1>
-                  <button 
-                    onClick={handleShare} 
+                  <button
+                    onClick={handleShare}
                     className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors"
                     aria-label="Share product"
                   >
@@ -135,6 +174,7 @@ const ProductDetail=()=> {
                   </button>
                 </div>
                 <p className="text-gray-600 mb-4">{product.description}</p>
+                
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div>
                     <span className="text-sm text-gray-500">Part Number:</span>
@@ -168,14 +208,14 @@ const ProductDetail=()=> {
                   <span className="text-sm font-medium text-gray-700">Quantity:</span>
                   <div className="flex items-center border border-gray-300 rounded-lg">
                     <button
-                      onClick={()=> setQuantity(Math.max(1,quantity - 1))}
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
                       className="p-2 hover:bg-gray-100"
                     >
                       <SafeIcon icon={FiMinus} className="h-4 w-4" />
                     </button>
                     <span className="px-4 py-2 border-x border-gray-300">{quantity}</span>
                     <button
-                      onClick={()=> setQuantity(quantity + 1)}
+                      onClick={() => setQuantity(quantity + 1)}
                       className="p-2 hover:bg-gray-100"
                     >
                       <SafeIcon icon={FiPlus} className="h-4 w-4" />
@@ -193,6 +233,7 @@ const ProductDetail=()=> {
                       <SafeIcon icon={FiShoppingCart} className="h-5 w-5 mr-2" />
                       Add to Cart
                     </button>
+                    
                     <button
                       onClick={handleWhatsApp}
                       className="bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
@@ -200,6 +241,7 @@ const ProductDetail=()=> {
                       <SafeIcon icon={FiMessageCircle} className="h-5 w-5 mr-2" />
                       WhatsApp
                     </button>
+                    
                     <button
                       onClick={handleShare}
                       className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
@@ -208,6 +250,7 @@ const ProductDetail=()=> {
                       Share
                     </button>
                   </div>
+                  
                   <button
                     onClick={handleBuyNow}
                     className="w-full bg-orange-600 text-white py-3 px-6 rounded-lg hover:bg-orange-700 transition-colors font-semibold"
@@ -253,7 +296,7 @@ const ProductDetail=()=> {
         <QuickOrderModal
           product={product}
           quantity={quantity}
-          onClose={()=> setShowQuickOrder(false)}
+          onClose={() => setShowQuickOrder(false)}
         />
       )}
     </div>
