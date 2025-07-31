@@ -1,49 +1,27 @@
 import React from 'react';
-import {Link} from 'react-router-dom';
-import {motion} from 'framer-motion';
-import {useCart} from '../context/CartContext';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { useCart } from '../context/CartContext';
 import SafeIcon from '../common/SafeIcon';
+import ProductImageLoader from './ProductImageLoader';
+import useProductImages from '../hooks/useProductImages';
 import * as FiIcons from 'react-icons/fi';
 
-const {FiShoppingCart, FiMessageCircle, FiShare2} = FiIcons;
+const { FiShoppingCart, FiMessageCircle, FiShare2, FiImage, FiAlertTriangle } = FiIcons;
 
-const ProductCard = ({product}) => {
-  const {addToCart} = useCart();
+const ProductCard = ({ product }) => {
+  const { addToCart } = useCart();
   
-  // IMPROVED image handling logic - less aggressive filtering
-  const getProductImage = () => {
-    // Hard-coded list of exact mock image URLs to filter out
-    const mockImageUrls = [
-      'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158',
-      'https://via.placeholder.com/150',
-      'https://via.placeholder.com/300'
-    ];
-    
-    // Only filter out exact matches to prevent false positives
-    const isExactMockImage = (url) => {
-      if (!url) return true;
-      return mockImageUrls.includes(url);
-    };
-
-    // First priority: product.image (if it exists and is not an exact mock image)
-    if (product.image && product.image.length > 5 && !isExactMockImage(product.image)) {
-      return product.image;
-    }
-    
-    // Second priority: first valid image from images array
-    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-      for (const image of product.images) {
-        if (image && image.length > 5 && !isExactMockImage(image)) {
-          return image;
-        }
-      }
-    }
-    
-    // Last resort: return null to show placeholder
-    return null;
-  };
-
-  const productImage = getProductImage();
+  // Use the advanced image management hook
+  const {
+    currentImage,
+    hasImages,
+    isLoading: imageLoading,
+    totalImages,
+    errorCount,
+    markCurrentImageInvalid,
+    nextImage
+  } = useProductImages(product);
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -74,40 +52,52 @@ const ProductCard = ({product}) => {
     }
   };
 
+  const handleImageError = () => {
+    console.log(`ProductCard: Image error for product ${product.id}`);
+    markCurrentImageInvalid();
+  };
+
   return (
     <motion.div
-      whileHover={{y: -2}}
+      whileHover={{ y: -2 }}
       className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full flex flex-col"
     >
       <Link to={`/product/${product.id}`} className="block flex-shrink-0">
         <div className="relative w-full h-32 sm:h-40 md:h-48 overflow-hidden bg-gray-100">
-          {productImage ? (
-            <img
-              src={productImage}
-              alt={product.name}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                // If image fails to load, hide it completely
-                console.log(`Image load error for: ${productImage}`);
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
-              }}
-              loading="lazy"
-            />
-          ) : null}
+          {/* APPROACH 1: Use the new ProductImageLoader component */}
+          <ProductImageLoader 
+            product={product}
+            className="w-full h-full object-cover"
+          />
           
-          {/* Placeholder for when no valid image is available */}
-          <div 
-            className={`${productImage ? 'hidden' : 'flex'} w-full h-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200`}
-            style={{display: productImage ? 'none' : 'flex'}}
-          >
-            <div className="text-center text-gray-500">
-              <SafeIcon icon={FiShoppingCart} className="h-8 w-8 mx-auto mb-2" />
-              <p className="text-xs font-medium">{product.brand}</p>
-              <p className="text-xs">{product.category}</p>
+          {/* APPROACH 2: Fallback with hook-based image management */}
+          {!hasImages && !imageLoading && (
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+              <div className="text-center text-gray-500">
+                <SafeIcon icon={FiImage} className="h-8 w-8 mx-auto mb-2" />
+                <p className="text-xs font-medium">{product.brand}</p>
+                <p className="text-xs">{product.category}</p>
+                {errorCount > 0 && (
+                  <p className="text-xs text-red-500 mt-1">{errorCount} failed</p>
+                )}
+              </div>
             </div>
-          </div>
-          
+          )}
+
+          {/* Multiple images indicator */}
+          {totalImages > 1 && (
+            <div className="absolute top-2 left-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+              {totalImages} images
+            </div>
+          )}
+
+          {/* Error indicator for debugging */}
+          {process.env.NODE_ENV === 'development' && errorCount > 0 && (
+            <div className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
+              <SafeIcon icon={FiAlertTriangle} className="h-3 w-3" />
+            </div>
+          )}
+
           {/* Share button positioned at bottom right of image */}
           <button
             onClick={handleShare}
