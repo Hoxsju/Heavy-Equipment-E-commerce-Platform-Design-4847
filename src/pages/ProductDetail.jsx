@@ -41,24 +41,35 @@ const ProductDetail = () => {
     }
   };
 
-  // FIXED: Simplified image handling - just use what's available
+  // Enhanced image handling with better validation
   const getProductImage = () => {
     if (!product) return null;
     
+    // Helper function to validate image URL
+    const isValidImageUrl = (url) => {
+      if (!url || typeof url !== 'string') return false;
+      const trimmed = url.trim();
+      return trimmed.startsWith('http') || trimmed.startsWith('https') || trimmed.startsWith('data:');
+    };
+
     // First priority: product.image
-    if (product.image && product.image.length > 0) {
+    if (isValidImageUrl(product.image)) {
       console.log('Using main image:', product.image);
-      return product.image;
+      return product.image.trim();
     }
     
-    // Second priority: first image from images array
-    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-      console.log('Using image from array:', product.images[0]);
-      return product.images[0];
+    // Second priority: first valid image from images array
+    if (product.images && Array.isArray(product.images)) {
+      for (const img of product.images) {
+        if (isValidImageUrl(img)) {
+          console.log('Using image from array:', img);
+          return img.trim();
+        }
+      }
     }
     
-    // No image available
-    console.log('No valid images found, using placeholder');
+    // No valid image found
+    console.log('No valid images found for product:', product.name);
     return null;
   };
 
@@ -121,13 +132,15 @@ const ProductDetail = () => {
 
   const productImage = getProductImage();
   
-  // Debug image information
-  console.log('Product Detail Image Info:', {
+  // Enhanced debug logging
+  console.log('Product Detail Image Debug:', {
     product_id: product.id,
     product_name: product.name,
     main_image: product.image,
     images_array: product.images,
-    selected_image: productImage
+    images_count: product.images?.length || 0,
+    selected_image: productImage,
+    image_valid: !!productImage
   });
 
   return (
@@ -155,22 +168,30 @@ const ProductDetail = () => {
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       console.log(`Image load error for: ${productImage}`);
+                      console.log('Product:', product.name, 'ID:', product.id);
                       e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'flex';
+                      const placeholder = e.target.nextSibling;
+                      if (placeholder) {
+                        placeholder.style.display = 'flex';
+                      }
+                    }}
+                    onLoad={() => {
+                      console.log(`Image loaded successfully: ${productImage}`);
                     }}
                   />
                 ) : null}
                 
-                {/* Fallback when no image available */}
+                {/* Enhanced fallback with better styling */}
                 <div 
                   className={`${productImage ? 'hidden' : 'flex'} w-full h-full items-center justify-center`}
                   style={{display: productImage ? 'none' : 'flex'}}
                 >
-                  <div className="text-center text-gray-500">
+                  <div className="text-center text-gray-500 p-8">
                     <SafeIcon icon={FiShoppingCart} className="h-16 w-16 mx-auto mb-4" />
-                    <p className="text-lg font-medium">{product.brand}</p>
-                    <p className="text-sm">{product.category}</p>
-                    <p className="text-xs mt-2 text-gray-400">Part #{product.part_number}</p>
+                    <p className="text-lg font-medium mb-2">{product.brand}</p>
+                    <p className="text-sm mb-2">{product.category}</p>
+                    <p className="text-xs text-gray-400">Part #{product.part_number}</p>
+                    <p className="text-xs text-gray-400 mt-2">No image available</p>
                   </div>
                 </div>
               </div>

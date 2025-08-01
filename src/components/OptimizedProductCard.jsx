@@ -1,43 +1,21 @@
-import React from 'react';
-import {Link} from 'react-router-dom';
-import {motion} from 'framer-motion';
-import {useCart} from '../context/CartContext';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { useCart } from '../context/CartContext';
 import SafeIcon from '../common/SafeIcon';
+import { enhancedStorageService } from '../services/enhancedStorageService';
+import { imageOptimizationService } from '../services/imageOptimizationService';
 import * as FiIcons from 'react-icons/fi';
 
-const {FiShoppingCart, FiMessageCircle, FiShare2} = FiIcons;
+const { FiShoppingCart, FiMessageCircle, FiShare2 } = FiIcons;
 
-const ProductCard = ({product}) => {
-  const {addToCart} = useCart();
-  
-  // Enhanced image handling with better validation
-  const getProductImage = () => {
-    // Helper function to validate image URL
-    const isValidImageUrl = (url) => {
-      if (!url || typeof url !== 'string') return false;
-      const trimmed = url.trim();
-      return trimmed.startsWith('http') || trimmed.startsWith('https') || trimmed.startsWith('data:');
-    };
+const OptimizedProductCard = ({ product }) => {
+  const { addToCart } = useCart();
+  const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
-    // First priority: product.image
-    if (isValidImageUrl(product.image)) {
-      return product.image.trim();
-    }
-    
-    // Second priority: first valid image from images array
-    if (product.images && Array.isArray(product.images)) {
-      for (const img of product.images) {
-        if (isValidImageUrl(img)) {
-          return img.trim();
-        }
-      }
-    }
-    
-    // No valid image found
-    return null;
-  };
-
-  const productImage = getProductImage();
+  // Get optimized image URLs
+  const { thumbnail, fullImage } = enhancedStorageService.getOptimizedImageUrls(product);
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -68,48 +46,71 @@ const ProductCard = ({product}) => {
     }
   };
 
+  const handleImageError = () => {
+    setImageError(true);
+    setImageLoaded(true);
+  };
+
+  const handleImageLoad = () => {
+    setImageError(false);
+    setImageLoaded(true);
+  };
+
   return (
     <motion.div
-      whileHover={{y: -2}}
+      whileHover={{ y: -2 }}
       className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full flex flex-col"
     >
       <Link to={`/product/${product.id}`} className="block flex-shrink-0">
         <div className="relative w-full h-32 sm:h-40 md:h-48 overflow-hidden bg-gray-100">
-          {productImage ? (
+          {/* Loading placeholder */}
+          {!imageLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+              <div className="animate-pulse">
+                <SafeIcon icon={FiShoppingCart} className="h-8 w-8 text-gray-400" />
+              </div>
+            </div>
+          )}
+
+          {/* Main image */}
+          {thumbnail && !imageError && (
             <img
-              src={productImage}
+              src={thumbnail}
               alt={product.name}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                // Enhanced error handling
-                console.log(`Image load error for: ${productImage}`);
-                console.log('Product:', product.name, 'ID:', product.id);
-                e.target.style.display = 'none';
-                const placeholder = e.target.nextSibling;
-                if (placeholder) {
-                  placeholder.style.display = 'flex';
-                }
-              }}
-              onLoad={() => {
-                console.log(`Image loaded successfully: ${productImage}`);
-              }}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${
+                imageLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
+              onError={handleImageError}
+              onLoad={handleImageLoad}
               loading="lazy"
+              // Add data attributes for debugging
+              data-product-id={product.id}
+              data-image-type="thumbnail"
             />
-          ) : null}
+          )}
           
           {/* Enhanced placeholder with better styling */}
-          <div 
-            className={`${productImage ? 'hidden' : 'flex'} w-full h-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200`}
-            style={{display: productImage ? 'none' : 'flex'}}
-          >
-            <div className="text-center text-gray-500 p-4">
-              <SafeIcon icon={FiShoppingCart} className="h-8 w-8 mx-auto mb-2" />
-              <p className="text-xs font-medium mb-1">{product.brand}</p>
-              <p className="text-xs mb-1">{product.category}</p>
-              <p className="text-xs text-gray-400">Part #{product.part_number}</p>
+          {(imageError || !thumbnail) && imageLoaded && (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+              <div className="text-center text-gray-500 p-4">
+                <SafeIcon icon={FiShoppingCart} className="h-8 w-8 mx-auto mb-2" />
+                <p className="text-xs font-medium mb-1">{product.brand}</p>
+                <p className="text-xs mb-1">{product.category}</p>
+                <p className="text-xs text-gray-400">Part #{product.part_number}</p>
+                {imageError && (
+                  <p className="text-xs text-red-400 mt-1">Image unavailable</p>
+                )}
+              </div>
             </div>
-          </div>
-          
+          )}
+
+          {/* Optimization indicator */}
+          {thumbnail && thumbnail.includes('supabase') && (
+            <div className="absolute top-1 left-1 bg-green-500 text-white text-xs px-1 py-0.5 rounded">
+              ⚡
+            </div>
+          )}
+
           {/* Share button positioned at bottom right of image */}
           <button
             onClick={handleShare}
@@ -161,4 +162,4 @@ const ProductCard = ({product}) => {
   );
 };
 
-export default ProductCard;
+export default OptimizedProductCard;
