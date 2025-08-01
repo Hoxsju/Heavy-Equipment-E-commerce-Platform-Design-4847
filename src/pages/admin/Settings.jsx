@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
+import React, {useState, useEffect, useRef} from 'react';
+import {motion} from 'framer-motion';
+import {toast} from 'react-toastify';
 import SafeIcon from '../../common/SafeIcon';
 import LogoUploader from '../../components/LogoUploader';
-import EmailTest from '../../EmailTest';
 import EmailJSTest from '../../components/EmailJSTest';
-import { settingsService } from '../../services/settingsService';
-import { authService } from '../../services/authService';
+import {settingsService} from '../../services/settingsService';
+import {authService} from '../../services/authService';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiSave, FiMessageCircle, FiMail, FiMapPin, FiUser, FiImage, FiType, FiInfo, FiCheckCircle, FiXCircle, FiLoader, FiKey, FiChevronRight, FiChevronLeft } = FiIcons;
+const {FiSave, FiMessageCircle, FiMail, FiMapPin, FiUser, FiImage, FiType, FiInfo, FiCheckCircle, FiXCircle, FiLoader, FiKey, FiChevronRight, FiChevronLeft} = FiIcons;
 
 const Settings = () => {
   const [settings, setSettings] = useState({
@@ -25,12 +24,10 @@ const Settings = () => {
     footerEmail: 'info@alhajhasan.sa',
     footerAddress: '6359, Haroun Al Rashid Street, Al Sulay District, 2816, Riyadh, Saudi Arabia'
   });
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeEmailTab, setActiveEmailTab] = useState('emailjs');
   const [tabsScrollPosition, setTabsScrollPosition] = useState(0);
-  
   const tabsRef = useRef(null);
 
   useEffect(() => {
@@ -53,14 +50,16 @@ const Settings = () => {
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setSettings({ ...settings, [name]: value });
+    const {name, value} = e.target;
+    setSettings({
+      ...settings,
+      [name]: value
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-
     try {
       await settingsService.saveSettings(settings);
       toast.success('Settings updated successfully!');
@@ -75,11 +74,7 @@ const Settings = () => {
   const scrollTabs = (direction) => {
     if (tabsRef.current) {
       const scrollAmount = direction === 'left' ? -200 : 200;
-      tabsRef.current.scrollBy({
-        left: scrollAmount,
-        behavior: 'smooth'
-      });
-      
+      tabsRef.current.scrollBy({left: scrollAmount, behavior: 'smooth'});
       // Update scroll position for arrow visibility
       setTimeout(() => {
         if (tabsRef.current) {
@@ -91,10 +86,10 @@ const Settings = () => {
 
   // Check if scroll arrows should be visible
   const canScrollLeft = tabsScrollPosition > 0;
-  const canScrollRight = tabsRef.current ? 
-    tabsRef.current.scrollWidth > tabsRef.current.clientWidth && 
-    tabsRef.current.scrollLeft + tabsRef.current.clientWidth < tabsRef.current.scrollWidth - 10 : 
-    false;
+  const canScrollRight = tabsRef.current 
+    ? tabsRef.current.scrollWidth > tabsRef.current.clientWidth && 
+      tabsRef.current.scrollLeft + tabsRef.current.clientWidth < tabsRef.current.scrollWidth - 10
+    : false;
 
   // Update scroll position when tabs container is scrolled
   const handleTabsScroll = () => {
@@ -108,15 +103,13 @@ const Settings = () => {
     const tabsElement = tabsRef.current;
     if (tabsElement) {
       tabsElement.addEventListener('scroll', handleTabsScroll);
-      
       // Check if scrollbars are needed
       const checkScrollable = () => {
         setTabsScrollPosition(tabsElement.scrollLeft);
       };
-      
       checkScrollable();
       window.addEventListener('resize', checkScrollable);
-      
+
       return () => {
         tabsElement.removeEventListener('scroll', handleTabsScroll);
         window.removeEventListener('resize', checkScrollable);
@@ -133,14 +126,14 @@ const Settings = () => {
   }
 
   const tabs = [
-    { id: 'emailjs', label: 'EmailJS Service' },
-    { id: 'supabase', label: 'Supabase Auth' },
-    { id: 'notifications', label: 'Email Notifications' },
-    { id: 'templates', label: 'Email Templates' },
-    { id: 'smtp', label: 'SMTP Settings' },
-    { id: 'logs', label: 'Email Logs' },
-    { id: 'advanced', label: 'Advanced Settings' },
-    { id: 'integrations', label: 'Third-party Integrations' }
+    {id: 'emailjs', label: 'EmailJS Service'},
+    {id: 'supabase', label: 'Supabase Auth'},
+    {id: 'notifications', label: 'Email Notifications'},
+    {id: 'templates', label: 'Email Templates'},
+    {id: 'smtp', label: 'SMTP Settings'},
+    {id: 'logs', label: 'Email Logs'},
+    {id: 'advanced', label: 'Advanced Settings'},
+    {id: 'integrations', label: 'Third-party Integrations'}
   ];
 
   return (
@@ -177,7 +170,7 @@ const Settings = () => {
           <div className="relative mb-4">
             {/* Left scroll button */}
             {canScrollLeft && (
-              <button 
+              <button
                 type="button"
                 onClick={() => scrollTabs('left')}
                 className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white shadow-md rounded-full p-1 text-gray-500 hover:text-gray-800 hover:bg-gray-100 focus:outline-none"
@@ -186,12 +179,12 @@ const Settings = () => {
                 <SafeIcon icon={FiChevronLeft} className="h-5 w-5" />
               </button>
             )}
-            
+
             {/* Tabs container with horizontal scrolling */}
             <div 
               className="overflow-x-auto py-2 px-6 border-b border-gray-200 scrollbar-hide"
               ref={tabsRef}
-              style={{ 
+              style={{
                 msOverflowStyle: 'none', /* IE and Edge */
                 scrollbarWidth: 'none', /* Firefox */
               }}
@@ -203,8 +196,8 @@ const Settings = () => {
                     type="button"
                     onClick={() => setActiveEmailTab(tab.id)}
                     className={`whitespace-nowrap px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                      activeEmailTab === tab.id 
-                        ? 'bg-primary-100 text-primary-800 border border-primary-200' 
+                      activeEmailTab === tab.id
+                        ? 'bg-primary-100 text-primary-800 border border-primary-200'
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
@@ -213,10 +206,10 @@ const Settings = () => {
                 ))}
               </div>
             </div>
-            
+
             {/* Right scroll button */}
             {canScrollRight && (
-              <button 
+              <button
                 type="button"
                 onClick={() => scrollTabs('right')}
                 className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white shadow-md rounded-full p-1 text-gray-500 hover:text-gray-800 hover:bg-gray-100 focus:outline-none"
@@ -225,7 +218,7 @@ const Settings = () => {
                 <SafeIcon icon={FiChevronRight} className="h-5 w-5" />
               </button>
             )}
-            
+
             {/* CSS to hide scrollbars but keep functionality */}
             <style jsx>{`
               .scrollbar-hide::-webkit-scrollbar {
@@ -236,37 +229,49 @@ const Settings = () => {
 
           {/* Email System Content */}
           {activeEmailTab === 'emailjs' && <EmailJSTest embedded={true} />}
-          {activeEmailTab === 'supabase' && <EmailTest embedded={true} />}
+          
+          {activeEmailTab === 'supabase' && (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h3 className="font-medium text-gray-900 mb-2">Supabase Authentication</h3>
+              <p className="text-sm text-gray-600">Configure Supabase authentication settings and email templates.</p>
+            </div>
+          )}
+          
           {activeEmailTab === 'notifications' && (
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-2">Email Notifications</h3>
               <p className="text-sm text-gray-600">Configure automatic email notifications for orders and account activities.</p>
             </div>
           )}
+          
           {activeEmailTab === 'templates' && (
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-2">Email Templates</h3>
               <p className="text-sm text-gray-600">Customize email templates for different types of notifications.</p>
             </div>
           )}
+          
           {activeEmailTab === 'smtp' && (
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-2">SMTP Settings</h3>
               <p className="text-sm text-gray-600">Configure SMTP server settings for sending emails.</p>
             </div>
           )}
+          
           {activeEmailTab === 'logs' && (
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-2">Email Logs</h3>
               <p className="text-sm text-gray-600">View email delivery logs and troubleshoot issues.</p>
             </div>
           )}
+          
           {activeEmailTab === 'advanced' && (
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-2">Advanced Email Settings</h3>
               <p className="text-sm text-gray-600">Configure advanced email delivery options and performance settings.</p>
             </div>
           )}
+          
           {activeEmailTab === 'integrations' && (
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-2">Third-party Email Integrations</h3>
@@ -324,7 +329,7 @@ const Settings = () => {
               <LogoUploader
                 currentLogo={settings.websiteLogo}
                 onLogoUpdate={(url) => {
-                  setSettings({ ...settings, websiteLogo: url });
+                  setSettings({...settings, websiteLogo: url});
                 }}
               />
             </div>

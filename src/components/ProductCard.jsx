@@ -10,31 +10,31 @@ const {FiShoppingCart, FiMessageCircle, FiShare2} = FiIcons;
 const ProductCard = ({product}) => {
   const {addToCart} = useCart();
   
-  // Enhanced image handling with better validation
+  // Better image handling - prioritize real product images
   const getProductImage = () => {
-    // Helper function to validate image URL
-    const isValidImageUrl = (url) => {
-      if (!url || typeof url !== 'string') return false;
-      const trimmed = url.trim();
-      return trimmed.startsWith('http') || trimmed.startsWith('https') || trimmed.startsWith('data:');
-    };
-
     // First priority: product.image
-    if (isValidImageUrl(product.image)) {
-      return product.image.trim();
+    if (product.image && 
+        product.image !== '' && 
+        !product.image.includes('placeholder') &&
+        !product.image.includes('via.placeholder') &&
+        product.image !== 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop') {
+      return product.image;
     }
     
-    // Second priority: first valid image from images array
-    if (product.images && Array.isArray(product.images)) {
-      for (const img of product.images) {
-        if (isValidImageUrl(img)) {
-          return img.trim();
-        }
+    // Second priority: first image from images array
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      const firstImage = product.images[0];
+      if (firstImage && 
+          firstImage !== '' && 
+          !firstImage.includes('placeholder') &&
+          !firstImage.includes('via.placeholder') &&
+          firstImage !== 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop') {
+        return firstImage;
       }
     }
     
-    // No valid image found
-    return null;
+    // Last resort: use a generic fallback (not the mock image)
+    return 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop&q=80';
   };
 
   const productImage = getProductImage();
@@ -62,6 +62,7 @@ const ProductCard = ({product}) => {
         url: url
       }).catch(error => console.log('Error sharing:', error));
     } else {
+      // Fallback to copying to clipboard
       navigator.clipboard.writeText(url)
         .then(() => alert('Product link copied to clipboard!'))
         .catch(err => console.log('Failed to copy link:', err));
@@ -74,42 +75,19 @@ const ProductCard = ({product}) => {
       className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full flex flex-col"
     >
       <Link to={`/product/${product.id}`} className="block flex-shrink-0">
-        <div className="relative w-full h-32 sm:h-40 md:h-48 overflow-hidden bg-gray-100">
-          {productImage ? (
-            <img
-              src={productImage}
-              alt={product.name}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                // Enhanced error handling
-                console.log(`Image load error for: ${productImage}`);
-                console.log('Product:', product.name, 'ID:', product.id);
-                e.target.style.display = 'none';
-                const placeholder = e.target.nextSibling;
-                if (placeholder) {
-                  placeholder.style.display = 'flex';
-                }
-              }}
-              onLoad={() => {
-                console.log(`Image loaded successfully: ${productImage}`);
-              }}
-              loading="lazy"
-            />
-          ) : null}
-          
-          {/* Enhanced placeholder with better styling */}
-          <div 
-            className={`${productImage ? 'hidden' : 'flex'} w-full h-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200`}
-            style={{display: productImage ? 'none' : 'flex'}}
-          >
-            <div className="text-center text-gray-500 p-4">
-              <SafeIcon icon={FiShoppingCart} className="h-8 w-8 mx-auto mb-2" />
-              <p className="text-xs font-medium mb-1">{product.brand}</p>
-              <p className="text-xs mb-1">{product.category}</p>
-              <p className="text-xs text-gray-400">Part #{product.part_number}</p>
-            </div>
-          </div>
-          
+        <div className="relative w-full h-32 sm:h-40 md:h-48 overflow-hidden">
+          <img
+            src={productImage}
+            alt={product.name}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              // Only fallback if the current src is not already the fallback
+              if (!e.target.src.includes('photo-1581091226825-a6a2a5aee158')) {
+                e.target.src = 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop&q=80';
+              }
+            }}
+            loading="lazy"
+          />
           {/* Share button positioned at bottom right of image */}
           <button
             onClick={handleShare}

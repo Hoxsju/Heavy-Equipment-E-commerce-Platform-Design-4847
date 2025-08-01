@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { toast } from 'react-toastify';
+import React, {useState, useEffect} from 'react';
+import {motion} from 'framer-motion';
+import {toast} from 'react-toastify';
 import SafeIcon from '../common/SafeIcon';
-import OptimizedImageUploader from './OptimizedImageUploader';
+import ImageUploader from './ImageUploader';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiX, FiSave, FiPlus, FiTrash2, FiLoader } = FiIcons;
+const {FiX, FiSave, FiPlus, FiTrash2, FiLoader} = FiIcons;
 
-const ProductModal = ({ product, onSave, onClose }) => {
+const ProductModal = ({product, onSave, onClose}) => {
   const [formData, setFormData] = useState({
     name: '',
     partNumber: '',
@@ -21,6 +21,7 @@ const ProductModal = ({ product, onSave, onClose }) => {
     status: 'draft',
     slug: ''
   });
+  
   const [newBrand, setNewBrand] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [saving, setSaving] = useState(false);
@@ -29,8 +30,10 @@ const ProductModal = ({ product, onSave, onClose }) => {
   useEffect(() => {
     if (product) {
       // Convert single brand/category to arrays if needed
-      const brands = Array.isArray(product.brands) ? product.brands : product.brand ? [product.brand] : [];
-      const categories = Array.isArray(product.categories) ? product.categories : product.category ? [product.category] : [];
+      const brands = Array.isArray(product.brands) ? product.brands : 
+                    product.brand ? [product.brand] : [];
+      const categories = Array.isArray(product.categories) ? product.categories : 
+                        product.category ? [product.category] : [];
       
       // Convert single image to array if needed
       const images = Array.isArray(product.images) ? product.images : [];
@@ -76,115 +79,92 @@ const ProductModal = ({ product, onSave, onClose }) => {
 
   const validateForm = () => {
     const newErrors = {};
-
+    
     if (!formData.name.trim()) {
       newErrors.name = 'Product name is required';
     }
-
+    
     if (!formData.partNumber.trim()) {
       newErrors.partNumber = 'Part number is required';
     }
-
+    
     // Validate numeric fields
     if (formData.price && isNaN(parseFloat(formData.price))) {
       newErrors.price = 'Price must be a valid number';
     }
-
+    
     if (formData.salePrice && isNaN(parseFloat(formData.salePrice))) {
       newErrors.salePrice = 'Sale price must be a valid number';
     }
-
+    
     if (formData.stock && isNaN(parseInt(formData.stock))) {
       newErrors.stock = 'Stock must be a valid number';
     }
-
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-
+    const {name, value} = e.target;
+    setFormData(prev => ({...prev, [name]: value}));
+    
     // Clear error when user starts typing
     if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+      setErrors(prev => ({...prev, [name]: ''}));
     }
-
+    
     // Auto-generate slug from name if slug field is empty
     if (name === 'name' && !formData.slug) {
       const slug = value
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
-      setFormData(prev => ({
-        ...prev,
-        slug
-      }));
+      setFormData(prev => ({...prev, slug}));
     }
   };
 
   const handleAddBrand = () => {
     if (newBrand.trim() && !formData.brands.includes(newBrand.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        brands: [...prev.brands, newBrand.trim()]
-      }));
+      setFormData(prev => ({...prev, brands: [...prev.brands, newBrand.trim()]}));
       setNewBrand('');
     }
   };
 
   const handleRemoveBrand = (brand) => {
-    setFormData(prev => ({
-      ...prev,
-      brands: prev.brands.filter(b => b !== brand)
-    }));
+    setFormData(prev => ({...prev, brands: prev.brands.filter(b => b !== brand)}));
   };
 
   const handleAddCategory = () => {
     if (newCategory.trim() && !formData.categories.includes(newCategory.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        categories: [...prev.categories, newCategory.trim()]
-      }));
+      setFormData(prev => ({...prev, categories: [...prev.categories, newCategory.trim()]}));
       setNewCategory('');
     }
   };
 
   const handleRemoveCategory = (category) => {
-    setFormData(prev => ({
-      ...prev,
-      categories: prev.categories.filter(c => c !== category)
-    }));
+    setFormData(prev => ({...prev, categories: prev.categories.filter(c => c !== category)}));
   };
 
   const handleImagesUpdate = (newImages) => {
     console.log('Images updated in modal:', newImages);
-    setFormData(prev => ({
-      ...prev,
-      images: newImages
-    }));
+    setFormData(prev => ({...prev, images: newImages}));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+    
     // Validate form
     if (!validateForm()) {
       toast.error('Please fix the errors in the form');
       return;
     }
-
+    
     setSaving(true);
+    
     try {
       console.log('Submitting product form with data:', formData);
-
+      
       // Prepare data for saving with proper data types
       const productData = {
         ...formData,
@@ -201,9 +181,9 @@ const ProductModal = ({ product, onSave, onClose }) => {
         salePrice: formData.salePrice ? parseFloat(formData.salePrice) : null,
         stock: formData.stock ? parseInt(formData.stock) : null
       };
-
+      
       console.log('Final product data being saved:', productData);
-
+      
       const result = await onSave(productData);
       console.log('Save result:', result);
       
@@ -237,8 +217,8 @@ const ProductModal = ({ product, onSave, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{opacity: 0, scale: 0.95}}
+        animate={{opacity: 1, scale: 1}}
         className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
       >
         <div className="flex justify-between items-center mb-6">
@@ -399,12 +379,12 @@ const ProductModal = ({ product, onSave, onClose }) => {
             </div>
           </div>
 
-          {/* Product Images - Using Optimized Uploader */}
+          {/* Product Images */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Product Images (Optimized)
+              Product Images
             </label>
-            <OptimizedImageUploader
+            <ImageUploader
               images={formData.images}
               onImagesUpdate={handleImagesUpdate}
               maxImages={10}
