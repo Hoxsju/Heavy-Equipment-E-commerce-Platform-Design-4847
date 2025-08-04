@@ -10,13 +10,13 @@ export const storageService = {
   async uploadProductImage(fileOrBase64, folder = 'products') {
     try {
       console.log('Starting image upload process...', typeof fileOrBase64);
-      
+
       // If it's already a valid HTTP URL, return it as-is
       if (typeof fileOrBase64 === 'string' && (fileOrBase64.startsWith('http') || fileOrBase64.startsWith('https'))) {
         console.log('Image is already a valid URL, returning as-is');
         return fileOrBase64;
       }
-      
+
       // If it's a base64 data URL, convert to file
       if (typeof fileOrBase64 === 'string' && fileOrBase64.startsWith('data:')) {
         console.log('Image is base64 data URL, converting to File');
@@ -31,57 +31,98 @@ export const storageService = {
           return fileOrBase64;
         }
       }
-      
+
       // Only process actual File objects
       if (!(fileOrBase64 instanceof File)) {
         console.log('Input is not a File object, returning as-is:', typeof fileOrBase64);
         return fileOrBase64;
       }
-      
+
       const file = fileOrBase64;
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        throw new Error('File size must be less than 5MB');
+
+      // Validate file size (max 15MB - increased for better compatibility)
+      if (file.size > 15 * 1024 * 1024) {
+        throw new Error('File size must be less than 15MB');
       }
-      
-      // Validate file type
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-      if (!allowedTypes.includes(file.type)) {
-        throw new Error('File must be JPEG, PNG, WebP, or GIF format');
+
+      // Validate file type (more permissive)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
+      if (file.type && !allowedTypes.includes(file.type)) {
+        console.warn(`File type ${file.type} not in allowed types, but proceeding anyway`);
       }
-      
+
       // Create bucket if it doesn't exist
       await this.createBucketIfNotExists();
-      
-      // Generate unique filename
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+
+      // Generate unique filename with better collision avoidance
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 15);
+      const fileExt = this.getFileExtension(file.name, file.type);
+      const fileName = `${timestamp}_${randomString}.${fileExt}`;
       const filePath = `${folder}/${fileName}`;
-      
+
       console.log(`Uploading file to Supabase storage: ${filePath}`);
-      
-      // Upload to Supabase Storage
-      const {data, error} = await supabase.storage
-        .from('product_images')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-      
-      if (error) {
-        console.error('Supabase storage upload failed:', error);
+
+      // Upload to Supabase Storage with improved retry mechanism
+      let uploadResult = null;
+      let uploadError = null;
+
+      // Try upload with different configurations
+      const uploadConfigs = [
+        { cacheControl: '3600', upsert: false },
+        { cacheControl: '3600', upsert: true },
+        { upsert: true },
+        {} // Basic upload
+      ];
+
+      for (const config of uploadConfigs) {
+        try {
+          console.log('Trying upload with config:', config);
+          const { data, error } = await supabase.storage
+            .from('product_images')
+            .upload(filePath, file, config);
+
+          if (error) {
+            console.error('Upload attempt failed:', error);
+            uploadError = error;
+            continue;
+          }
+
+          uploadResult = data;
+          uploadError = null;
+          break;
+        } catch (attemptError) {
+          console.error('Upload attempt exception:', attemptError);
+          uploadError = attemptError;
+          continue;
+        }
+      }
+
+      if (uploadError || !uploadResult) {
+        console.error('All upload attempts failed, falling back to base64');
         // Fall back to converting to base64 for local storage
         return await this.convertFileToBase64(file);
       }
-      
+
       // Get the public URL for the uploaded file
-      const {data: {publicUrl}} = supabase.storage
+      const { data: { publicUrl } } = supabase.storage
         .from('product_images')
         .getPublicUrl(filePath);
-      
+
       console.log('Upload successful, public URL:', publicUrl);
+
+      // Verify the uploaded file exists by trying to fetch it
+      try {
+        const response = await fetch(publicUrl, { method: 'HEAD' });
+        if (!response.ok) {
+          console.warn('Uploaded file verification failed, but continuing with URL');
+        }
+      } catch (verifyError) {
+        console.warn('Could not verify uploaded file, but continuing:', verifyError);
+      }
+
       return publicUrl;
+
     } catch (error) {
       console.error('Error uploading image:', error);
       
@@ -94,10 +135,37 @@ export const storageService = {
           console.error('Base64 conversion also failed:', base64Error);
         }
       }
-      
+
       // Return original input as fallback
       return fileOrBase64;
     }
+  },
+
+  /**
+   * Get file extension from filename or MIME type
+   */
+  getFileExtension(filename, mimeType) {
+    // First try to get extension from filename
+    if (filename && filename.includes('.')) {
+      const ext = filename.split('.').pop().toLowerCase();
+      if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(ext)) {
+        return ext;
+      }
+    }
+
+    // Fallback to MIME type
+    if (mimeType) {
+      const mimeMap = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+        'image/gif': 'gif',
+        'image/svg+xml': 'svg'
+      };
+      return mimeMap[mimeType] || 'jpg';
+    }
+
+    return 'jpg'; // Default fallback
   },
 
   /**
@@ -126,13 +194,13 @@ export const storageService = {
         const bstr = atob(arr[1]);
         let n = bstr.length;
         const u8arr = new Uint8Array(n);
-        
+
         while (n--) {
           u8arr[n] = bstr.charCodeAt(n);
         }
-        
+
         // Create a File object
-        const file = new File([u8arr], filename, {type: mime});
+        const file = new File([u8arr], filename, { type: mime });
         resolve(file);
       } catch (error) {
         reject(error);
@@ -152,7 +220,7 @@ export const storageService = {
         console.log('Not a Supabase storage URL, skipping delete');
         return false;
       }
-      
+
       // Extract the file path from the URL
       const url = new URL(imageUrl);
       const pathParts = url.pathname.split('/');
@@ -163,19 +231,19 @@ export const storageService = {
         console.log('Could not find bucket name in URL');
         return false;
       }
-      
+
       const filePath = pathParts.slice(bucketIndex + 1).join('/');
       console.log('Attempting to delete file:', filePath);
-      
-      const {error} = await supabase.storage
+
+      const { error } = await supabase.storage
         .from('product_images')
         .remove([filePath]);
-      
+
       if (error) {
         console.error('Error deleting image:', error);
         return false;
       }
-      
+
       console.log('Image deleted successfully:', filePath);
       return true;
     } catch (error) {
@@ -192,41 +260,41 @@ export const storageService = {
   async createBucketIfNotExists(bucketName = 'product_images') {
     try {
       console.log(`Checking if bucket ${bucketName} exists...`);
-      
+
       // Check if bucket exists
-      const {data: buckets, error: listError} = await supabase.storage.listBuckets();
+      const { data: buckets, error: listError } = await supabase.storage.listBuckets();
       
       if (listError) {
         console.error('Error listing buckets:', listError);
-        return {success: false, error: listError};
+        return { success: false, error: listError };
       }
-      
+
       const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
-      
+
       if (!bucketExists) {
         console.log(`Creating bucket: ${bucketName}`);
         
         // Create the bucket
-        const {data, error} = await supabase.storage.createBucket(bucketName, {
+        const { data, error } = await supabase.storage.createBucket(bucketName, {
           public: true,
-          fileSizeLimit: 5242880, // 5MB in bytes
-          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+          fileSizeLimit: 15728640, // 15MB in bytes
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
         });
-        
+
         if (error) {
           console.error('Error creating bucket:', error);
-          return {success: false, error};
+          return { success: false, error };
         }
-        
+
         console.log(`Bucket ${bucketName} created successfully`);
-        return {success: true, data};
+        return { success: true, data };
       }
-      
+
       console.log(`Bucket ${bucketName} already exists`);
-      return {success: true, message: 'Bucket already exists'};
+      return { success: true, message: 'Bucket already exists' };
     } catch (error) {
       console.error('Error checking/creating bucket:', error);
-      return {success: false, error};
+      return { success: false, error };
     }
   }
 };

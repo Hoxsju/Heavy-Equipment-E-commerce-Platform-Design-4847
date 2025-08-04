@@ -1,53 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useCart } from '../context/CartContext';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiShoppingCart, FiMessageCircle, FiShare2, FiLoader } = FiIcons;
+const { FiShoppingCart, FiMessageCircle, FiShare2 } = FiIcons;
 
-const ProductCard = ({ product, isVisible = true, batchIndex = 0 }) => {
+const ProductCard = ({ product }) => {
   const { addToCart } = useCart();
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  const [shouldLoadImage, setShouldLoadImage] = useState(false);
-  const cardRef = useRef(null);
   const fallbackImage = 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&h=300&fit=crop';
-
-  // Intersection Observer for lazy loading
-  useEffect(() => {
-    if (!isVisible) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            // Add a small delay based on batch index to stagger loading
-            const delay = batchIndex * 100;
-            setTimeout(() => {
-              setShouldLoadImage(true);
-            }, delay);
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      {
-        rootMargin: '50px', // Start loading 50px before the element comes into view
-        threshold: 0.1
-      }
-    );
-
-    if (cardRef.current) {
-      observer.observe(cardRef.current);
-    }
-
-    return () => {
-      if (cardRef.current) {
-        observer.unobserve(cardRef.current);
-      }
-    };
-  }, [isVisible, batchIndex]);
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -65,7 +27,7 @@ const ProductCard = ({ product, isVisible = true, batchIndex = 0 }) => {
     e.preventDefault();
     const url = `${window.location.origin}/#/product/${product.id}`;
     const title = `Check out ${product.name}`;
-    
+
     if (navigator.share) {
       navigator.share({
         title: title,
@@ -79,61 +41,23 @@ const ProductCard = ({ product, isVisible = true, batchIndex = 0 }) => {
     }
   };
 
-  const handleImageLoad = () => {
-    setImageLoaded(true);
-    setImageError(false);
-  };
-
-  const handleImageError = () => {
-    setImageError(true);
-    setImageLoaded(true); // Still set to true to show the fallback
-  };
-
   return (
     <motion.div
-      ref={cardRef}
       whileHover={{ y: -2 }}
       className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full flex flex-col"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: isVisible ? 1 : 0, y: isVisible ? 0 : 20 }}
-      transition={{ duration: 0.3, delay: batchIndex * 0.05 }}
     >
       <Link to={`/product/${product.id}`} className="block flex-shrink-0">
-        <div className="relative w-full h-32 sm:h-40 md:h-48 overflow-hidden bg-gray-100">
-          {/* Image Loading Placeholder */}
-          {!imageLoaded && shouldLoadImage && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-              <div className="flex flex-col items-center">
-                <SafeIcon icon={FiLoader} className="h-6 w-6 text-gray-400 animate-spin mb-2" />
-                <span className="text-xs text-gray-500">Loading...</span>
-              </div>
-            </div>
-          )}
-
-          {/* Skeleton placeholder when not yet loading */}
-          {!shouldLoadImage && (
-            <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-pulse" />
-          )}
-
-          {/* Actual Image */}
-          {shouldLoadImage && (
-            <img
-              src={imageError ? fallbackImage : (product.image || fallbackImage)}
-              alt={product.name}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${
-                imageLoaded ? 'opacity-100' : 'opacity-0'
-              }`}
-              onLoad={handleImageLoad}
-              onError={handleImageError}
-              loading="lazy"
-              style={{
-                position: imageLoaded ? 'static' : 'absolute',
-                top: imageLoaded ? 'auto' : 0,
-                left: imageLoaded ? 'auto' : 0
-              }}
-            />
-          )}
-
+        <div className="relative w-full h-32 sm:h-40 md:h-48 overflow-hidden">
+          <img
+            src={product.image || fallbackImage}
+            alt={product.name}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = fallbackImage;
+            }}
+            loading="lazy"
+          />
           {/* Share button positioned at bottom right of image */}
           <button
             onClick={handleShare}
